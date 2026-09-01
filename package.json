@@ -1,21 +1,23 @@
 {
   "name": "jellystream",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Jellystream — desktop client for Jellyfin media servers",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
     "icon": "electron tools/make-icon.js",
-    "dist": "electron-builder --win",
-    "test": "npm run test:syntax && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:i18n && npm run test:sync && npm run test:smoke",
-    "test:syntax": "node --check main.js && node --check downloads.js && node --check languages.js && node --check i18n.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check settings.js && node --check preload.js",
+    "dist": "electron-builder --win --publish never",
+    "test": "npm run test:syntax && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:i18n && npm run test:sync && npm run test:updater && npm run test:smoke",
+    "test:syntax": "node --check main.js && node --check updater.js && node --check downloads.js && node --check languages.js && node --check i18n.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check settings.js && node --check preload.js",
     "test:downloads": "electron tools/test-downloads.js",
     "test:ui": "electron tools/test-ui.js",
     "test:rows": "electron tools/test-rows.js",
     "test:i18n": "electron tools/test-i18n.js",
     "test:sync": "electron tools/test-sync.js",
-    "test:smoke": "electron tools/smoke.js"
+    "test:smoke": "electron tools/smoke.js",
+    "release": "electron-builder --win --publish always",
+    "test:updater": "electron tools/test-updater.js"
   },
   "homepage": "https://github.com/ukyyyy/jellystream",
   "repository": {
@@ -45,6 +47,7 @@
       "main.js",
       "downloads.js",
       "languages.js",
+      "updater.js",
       "preload.js",
       "i18n.js",
       "renderer.js",
@@ -61,18 +64,29 @@
       {
         "from": "language",
         "to": "language",
-        "filter": ["**/*.json"]
+        "filter": [
+          "**/*.json"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ukyyyy",
+        "repo": "jellystream"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -82,7 +96,11 @@
       "shortcutName": "Jellystream",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "installerHeaderIcon": "build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

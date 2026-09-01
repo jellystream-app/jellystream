@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const downloads = require('./downloads');
 const languages = require('./languages');
+const updater = require('./updater');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -88,6 +89,12 @@ ipcMain.handle('languages:get', (event, code) => languages.get(code));
 ipcMain.handle('languages:sync', (event, options) => languages.sync(options || {}));
 ipcMain.handle('languages:openFolder', () => languages.openFolder());
 
+/* ======================= UPDATES ======================= */
+
+ipcMain.handle('updater:state', () => updater.getState());
+ipcMain.handle('updater:check', () => updater.check({ silent: false }));
+ipcMain.handle('updater:install', () => updater.installNow());
+
 app.whenReady().then(() => {
   languages.init();
 
@@ -98,6 +105,11 @@ app.whenReady().then(() => {
     if (!win.isDestroyed()) win.webContents.send('downloads:event', message);
   });
 
+  // Der Updater meldet Fortschritt an dasselbe Fenster
+  updater.init((message) => {
+    if (!win.isDestroyed()) win.webContents.send('updater:event', message);
+  });
+
   /* Im Hintergrund nach neuen Uebersetzungen sehen — hoechstens einmal
      taeglich. Scheitert es (offline), passiert nichts Sichtbares. */
   win.webContents.once('did-finish-load', () => {
@@ -106,6 +118,9 @@ app.whenReady().then(() => {
         win.webContents.send('languages:updated', result);
       }
     }).catch(() => {});
+
+    // Erst nach dem Laden nach Updates sehen, damit der Start flott bleibt
+    updater.start();
   });
 
   app.on('activate', () => {
@@ -116,7 +131,10 @@ app.whenReady().then(() => {
 });
 
 // Laufende Uebertragungen abbrechen, bevor der Prozess endet
-app.on('before-quit', () => downloads.shutdown());
+app.on('before-quit', () => {
+  downloads.shutdown();
+  updater.stop();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

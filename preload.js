@@ -56,3 +56,15 @@ contextBridge.exposeInMainWorld('languages', {
     return () => ipcRenderer.removeListener('languages:updated', handler);
   }
 });
+
+// Automatische Updates: Zustand lesen, manuell pruefen, sofort einspielen
+contextBridge.exposeInMainWorld('updater', {
+  state: () => ipcRenderer.invoke('updater:state'),
+  check: () => ipcRenderer.invoke('updater:check'),
+  install: () => ipcRenderer.invoke('updater:install'),
+  onEvent: (callback) => {
+    const handler = (_event, message) => callback(message);
+    ipcRenderer.on('updater:event', handler);
+    return () => ipcRenderer.removeListener('updater:event', handler);
+  }
+});

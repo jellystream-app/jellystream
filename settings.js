@@ -667,6 +667,9 @@ async function openSettings() {
   /* --- Downloads --- */
   refreshDownloadSettings();
 
+  /* --- Updates --- */
+  refreshUpdateState();
+
   $('dl-quality').value = prefs.dlQuality;
   $('dl-delete-watched').checked = prefs.dlDeleteWatched;
 
@@ -1516,6 +1519,97 @@ window.languages?.onUpdated(async () => {
     if ($('language-list')) renderLanguageList();
   } catch (error) {
     /* ignorieren */
+  }
+});
+
+/* ====================== UPDATES ======================
+   Die App laedt Updates selbst und spielt sie beim Beenden ein.
+   Hier wird nur angezeigt, was gerade passiert. */
+
+function renderUpdateState(info) {
+  const text = $('update-text');
+  const dot = $('update-dot');
+  const bar = $('update-progress');
+  const install = $('update-install');
+  const current = $('update-current');
+  if (!text) return;
+
+  if (current) current.textContent = info.current || window.appInfo?.version || '—';
+
+  // Im Entwicklungslauf gibt es nichts zu aktualisieren
+  if (info.supported === false) {
+    text.textContent = t('update.devMode');
+    dot.className = 'update-dot';
+    bar.classList.add('hidden');
+    install.classList.add('hidden');
+    $('update-check').disabled = true;
+    return;
+  }
+
+  const messages = {
+    checking: () => t('update.checking'),
+    current: () => t('update.current'),
+    downloading: () => t('update.downloading', { version: info.version || '', percent: info.percent || 0 }),
+    ready: () => t('update.ready', { version: info.version || '' }),
+    error: () => info.error || t('update.failed'),
+    idle: () => t('update.idle')
+  };
+
+  text.textContent = (messages[info.status] || messages.idle)();
+  dot.className = `update-dot ${info.status}`;
+
+  const loading = info.status === 'downloading';
+  bar.classList.toggle('hidden', !loading);
+  if (loading) $('update-bar').style.width = `${info.percent || 0}%`;
+
+  install.classList.toggle('hidden', info.status !== 'ready');
+}
+
+async function refreshUpdateState() {
+  if (!window.updater) {
+    const text = $('update-text');
+    if (text) text.textContent = t('update.devMode');
+    return;
+  }
+  try {
+    renderUpdateState(await window.updater.state());
+  } catch (error) {
+    /* nicht schlimm */
+  }
+}
+
+$('update-check')?.addEventListener('click', async () => {
+  const button = $('update-check');
+  if (!window.updater) return;
+
+  button.disabled = true;
+  $('update-text').textContent = t('update.checking');
+
+  try {
+    const result = await window.updater.check();
+    if (result.skipped) $('update-text').textContent = t('update.devMode');
+    else if (result.failed) $('update-text').textContent = t('update.failed');
+  } catch (error) {
+    $('update-text').textContent = t('update.failed');
+  } finally {
+    button.disabled = false;
+    // Der Zustand kommt ueber das Ereignis, hier nur nachziehen
+    setTimeout(refreshUpdateState, 400);
+  }
+});
+
+$('update-install')?.addEventListener('click', () => window.updater?.install());
+
+/* Meldungen aus dem Main-Process. Ist ein Update fertig, erfaehrt der
+   Nutzer das einmal per Hinweis — der Rest passiert beim Beenden. */
+let updateReadyAnnounced = false;
+
+window.updater?.onEvent((info) => {
+  if ($('update-text')) renderUpdateState({ ...info, supported: true });
+
+  if (info.status === 'ready' && !updateReadyAnnounced) {
+    updateReadyAnnounced = true;
+    toast(t('update.readyToast', { version: info.version || '' }));
   }
 });
 
