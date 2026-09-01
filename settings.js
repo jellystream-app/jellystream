@@ -1524,7 +1524,7 @@ window.languages?.onUpdated(async () => {
    bleiben die Badges sichtbar, aber nicht anklickbar. */
 const PROJECT_LINKS = {
   github: 'https://github.com/ukyyyy/jellystream',
-  kofi: '' // TODO: Ko-fi-Adresse eintragen
+  kofi: 'https://ko-fi.com/jellystream'
 };
 
 function wireFooterLinks() {

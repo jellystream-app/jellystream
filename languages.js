@@ -98,7 +98,10 @@ function readLanguageFile(file, source) {
       flag: meta.flag || '',
       author: meta.author || '',
       authorUrl: meta.authorUrl || '',
-      version: meta.version || 1,
+      /* Nicht `meta.version || 1`: die 0 ist falsy und wuerde zur 1
+         hochgestuft — eine veraltete Datei gaelte dann als aktuell und
+         wuerde nie ersetzt. Nur eine fehlende Angabe wird zur 1. */
+      version: Number.isFinite(meta.version) ? meta.version : 1,
       rtl: Boolean(meta.rtl),
       strings: data.strings,
       source,
@@ -122,8 +125,20 @@ function readDir(dir, source, into) {
     // Der Index ist eine Liste, keine Sprache
     if (name.toLowerCase() === 'index.json') return;
     const lang = readLanguageFile(path.join(dir, name), source);
-    // Spaetere Quelle ueberschreibt fruehere — die Aufrufreihenfolge regelt den Vorrang
-    if (lang) into.set(lang.code, lang);
+    if (!lang) return;
+
+    const existing = into.get(lang.code);
+
+    /* Der Nutzerordner gewinnt immer — dort testet jemand seine eigene
+       Uebersetzung. Ein Cache-Eintrag darf die mitgelieferte Fassung
+       dagegen nur verdraengen, wenn er nicht aelter ist: sonst wuerde
+       nach einem App-Update eine veraltete heruntergeladene Datei die
+       neuere mitgelieferte ueberdecken. */
+    if (existing && source === 'cache' && existing.source === 'builtin') {
+      if (lang.version < existing.version) return;
+    }
+
+    into.set(lang.code, lang);
   });
 }
 
@@ -225,7 +240,18 @@ async function sync({ force = false } = {}) {
     const index = await fetchJson(INDEX_URL);
     const entries = Array.isArray(index) ? index : (index.languages || []);
 
-    const existing = new Map(loadAll().map((l) => [l.code, l]));
+    /* Zwei getrennte Sichten:
+       - `active` ist, was die App gerade benutzt (fuer den Nutzer-Vorrang)
+       - `cached` ist der Stand der heruntergeladenen Datei
+
+       Beides zu vermischen war ein Fehler: liegt eine veraltete Datei im
+       Cache, waehrend eine neuere mitgeliefert ist, meldet `active` die
+       hoehere Version — der Abgleich haelt den Cache faelschlich fuer
+       aktuell und die veraltete Datei bleibt fuer immer liegen. */
+    const active = new Map(loadAll().map((l) => [l.code, l]));
+    const cached = new Map();
+    readDir(cacheDir, 'cache', cached);
+
     let added = 0;
     let updated = 0;
 
@@ -233,16 +259,25 @@ async function sync({ force = false } = {}) {
       const code = String(entry.code || '').toLowerCase();
       if (!code) continue;
 
-      const have = existing.get(code);
-      // Eine lokale Fassung des Nutzers nie ueberschreiben
-      if (have && have.source === 'user') continue;
-      if (have && (have.version || 1) >= (entry.version || 1)) continue;
+      // Eine eigene Fassung des Nutzers nie ueberschreiben
+      if (active.get(code)?.source === 'user') continue;
+
+      const have = cached.get(code);
+      const wanted = Number.isFinite(entry.version) ? entry.version : 1;
+
+      // Schon in dieser Version (oder neuer) im Cache? Dann nichts tun.
+      if (have && have.version >= wanted) continue;
+
+      // Sonst: nur laden, wenn das Repo wirklich etwas Neueres hat als
+      // das, was die App gerade benutzt.
+      const inUse = active.get(code);
+      if (!have && inUse && inUse.version >= wanted) continue;
 
       try {
         const data = await fetchJson(`${REPO_RAW}/${encodeURIComponent(code)}.json`);
         if (!data || !data.strings) continue;
         fs.writeFileSync(path.join(cacheDir, `${code}.json`), JSON.stringify(data, null, 2));
-        if (have) updated += 1;
+        if (have || inUse) updated += 1;
         else added += 1;
       } catch (error) {
         console.warn(`Sprache ${code} nicht ladbar:`, error.message);
