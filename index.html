@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' http: https: data: blob:; media-src 'self' http: https: blob:; connect-src 'self' http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Jellystream</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- ========================== TITLE BAR ========================== -->
+    <div id="titlebar" class="titlebar">
+      <div class="tb-drag">
+        <span class="tb-title">Jellystream</span>
+      </div>
+      <div class="tb-controls">
+        <button id="tb-min" class="tb-btn" type="button" data-i18n-title="window.minimize" data-i18n-aria="window.minimize" title="Minimieren" aria-label="Minimieren">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </button>
+        <button id="tb-max" class="tb-btn" type="button" data-i18n-title="window.maximize" data-i18n-aria="window.maximize" title="Maximieren" aria-label="Maximieren">
+          <svg class="ic-max" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+          <svg class="ic-restore hidden" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="3.8" width="6" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M4.2 3.6V3a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1v3.6a1 1 0 0 1-1 1h-.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </button>
+        <button id="tb-close" class="tb-btn danger" type="button" data-i18n-title="window.close" data-i18n-aria="window.close" title="Schließen" aria-label="Schließen">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================= LOGIN ============================= -->
+    <div id="login-screen" class="login-screen">
+      <div class="login-aurora"></div>
+      <div class="login-noise"></div>
+
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="brand-orb">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.6c-1 0-1.9.5-2.4 1.4L3.2 15.3c-.5.9-.5 2 0 2.9.5.9 1.4 1.4 2.4 1.4h12.8c1 0 1.9-.5 2.4-1.4.5-.9.5-2 0-2.9L14.4 4c-.5-.9-1.4-1.4-2.4-1.4z" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>Jellystream</h1>
+            <p>Desktop</p>
+          </div>
+        </div>
+
+        <div class="login-intro">
+          <h2 data-i18n="login.welcome">Willkommen zurück</h2>
+          <p data-i18n="login.intro">Melde dich an deinem Server an, um fortzufahren.</p>
+        </div>
+
+        <form id="connect-form" class="connect-form" autocomplete="on">
+          <div class="field">
+            <label for="server-url" data-i18n="login.server">Server</label>
+            <div class="field-input">
+              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h16v6H4zM4 13h16v6H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <circle cx="7.5" cy="8" r="1" fill="currentColor"/>
+                <circle cx="7.5" cy="16" r="1" fill="currentColor"/>
+              </svg>
+              <input id="server-url" name="url" type="text" value="http://localhost:8096" placeholder="http://localhost:8096" spellcheck="false" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="username" data-i18n="login.username">Benutzername</label>
+            <div class="field-input">
+              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              </svg>
+              <input id="username" name="username" type="text" data-i18n-placeholder="login.usernamePlaceholder" placeholder="Benutzername" autocomplete="username" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="password" data-i18n="login.password">Passwort</label>
+            <div class="field-input">
+              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="5" y="10.5" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              </svg>
+              <input id="password" name="password" type="password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Passwort" autocomplete="current-password" required />
+              <button type="button" id="toggle-password" class="ghost-icon" data-i18n-title="login.showPassword" title="Passwort anzeigen" data-i18n-aria="login.showPassword" aria-label="Passwort anzeigen">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                  <circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <label class="remember">
+            <input id="remember-me" type="checkbox" checked />
+            <span class="checkmark"></span>
+            <span data-i18n="login.stayLoggedIn">Angemeldet bleiben</span>
+          </label>
+
+          <div id="auth-error" class="auth-error" aria-live="polite"></div>
+
+          <button type="submit" id="login-btn" class="primary-btn">
+            <span class="btn-label" data-i18n="login.submit">Anmelden</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+
+          <!-- X8: Quick Connect -->
+          <button type="button" id="quick-connect-btn" class="ghost-btn" style="margin-top:4px"
+                  data-i18n="login.quickConnect">
+            Quick Connect verwenden
+          </button>
+          <div id="quick-connect-box" class="qc-box hidden">
+            <p class="qc-hint">
+              <span data-i18n="login.quickConnectHint">Gib diesen Code im Jellyfin-Webportal ein unter</span>
+              <strong data-i18n="login.quickConnectPath">Einstellungen → Quick Connect</strong>
+            </p>
+            <div class="qc-code" id="qc-code">– – – – – –</div>
+            <p class="qc-status" id="qc-status"></p>
+            <button type="button" id="qc-cancel" class="ghost-btn" data-i18n="login.cancel">Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============================= APP ============================= -->
+    <div id="app-shell" class="app-shell hidden">
+      <!-- ---------------------- TOP NAVBAR ---------------------- -->
+      <header id="navbar" class="navbar">
+        <div class="nav-left">
+          <button class="nav-brand" id="nav-brand" type="button" data-i18n-title="nav.toHome" title="Zur Startseite">
+            <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+              <defs>
+                <linearGradient id="jf-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#aa5cc3"/>
+                  <stop offset="100%" stop-color="#00a4dc"/>
+                </linearGradient>
+              </defs>
+              <path fill="url(#jf-grad)" d="M16 4.2c-1.06 0-1.9.62-2.62 2.03l-4.9 9.6c-1.4 2.76-2.1 4.14-1.55 5.1.54.95 2.08.95 5.16.95h7.82c3.08 0 4.62 0 5.16-.95.55-.96-.15-2.34-1.55-5.1l-4.9-9.6C17.9 4.82 17.06 4.2 16 4.2z"/>
+              <path fill="url(#jf-grad)" opacity="0.55" d="M16 12.9c-.5 0-.9.3-1.25.97l-2.33 4.57c-.67 1.31-1 1.97-.74 2.42.26.46 1 .46 2.46.46h3.72c1.47 0 2.2 0 2.46-.46.26-.45-.07-1.11-.74-2.42l-2.33-4.57c-.35-.67-.75-.97-1.25-.97z"/>
+            </svg>
+            <span class="brand-word">Jellystream</span>
+          </button>
+
+          <nav class="nav-links">
+            <button class="nav-btn active" data-view="home" type="button" data-i18n="nav.home">Startseite</button>
+            <button class="nav-btn" data-view="movies" type="button" data-i18n="nav.movies">Filme</button>
+            <button class="nav-btn" data-view="series" type="button" data-i18n="nav.series">Serien</button>
+            <button class="nav-btn" data-view="music" type="button" data-i18n="nav.music">Musik</button>
+            <button class="nav-btn" data-view="favorites" type="button" data-i18n="nav.favorites">Meine Liste</button>
+            <button class="nav-btn" data-view="playlists" type="button" data-i18n="nav.playlists">Playlists</button>
+            <button class="nav-btn" data-view="offline" type="button" data-i18n="nav.offline">Offline</button>
+
+            <span class="nav-divider"></span>
+
+            <div class="nav-dropdown">
+              <button class="nav-btn caret" id="library-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+                <svg class="grid-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                <span data-i18n="nav.libraries">Bibliotheken</span>
+              </button>
+              <div id="library-menu" class="dropdown-menu hidden"></div>
+            </div>
+          </nav>
+        </div>
+
+        <div class="nav-right">
+          <button id="back-btn" class="icon-btn hidden" type="button" data-i18n-title="nav.back" title="Zurück" data-i18n-aria="nav.back" aria-label="Zurück">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+          <div class="search-box collapsed" id="search-box">
+            <button class="search-icon" id="search-toggle" type="button" data-i18n-title="nav.search" title="Suchen" data-i18n-aria="nav.search" aria-label="Suchen">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <input id="search-input" type="search" data-i18n-placeholder="nav.searchPlaceholder" placeholder="Suchen" spellcheck="false" data-i18n-aria="nav.search" aria-label="Suchen" />
+          </div>
+
+          <div class="nav-dropdown">
+            <button id="profile-btn" class="profile-btn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n-aria="profile.user" aria-label="Profil">
+              <span class="user-avatar" id="user-avatar">?</span>
+              <svg class="caret-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <div id="profile-menu" class="dropdown-menu profile-menu hidden">
+              <div class="profile-head">
+                <span class="user-avatar big" id="user-avatar-big">?</span>
+                <div class="profile-id">
+                  <strong id="user-name" data-i18n="profile.user">Benutzer</strong>
+                  <small id="status-text">Verbunden</small>
+                </div>
+              </div>
+              <div class="menu-sep"></div>
+
+              <div id="server-list" class="server-list"></div>
+
+              <button id="add-server-btn" class="menu-item" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <span data-i18n="profile.addServer">Server hinzufügen</span>
+              </button>
+
+              <div class="menu-sep"></div>
+
+              <button id="settings-btn" class="menu-item" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                <span data-i18n="profile.settings">Einstellungen</span>
+              </button>
+
+              <button id="disconnect-btn" class="menu-item danger" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 12H5.5m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span data-i18n="profile.signOut">Abmelden</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-panel" id="main-panel">
+        <div id="view-root" class="view-root"></div>
+      </main>
+      <a href="#view-root" class="skip-link" data-i18n="nav.skipToContent">Zum Inhalt springen</a>
+    </div>
+
+    <!-- ====================== CUSTOM VIDEO PLAYER ====================== -->
+    <div id="video-player" class="video-player hidden">
+      <video id="video-el" playsinline></video>
+
+      <div id="video-loading" class="video-loading"><div class="spinner"></div></div>
+
+      <div id="video-ui" class="video-ui">
+        <div class="vp-top">
+          <button id="vp-close" class="icon-btn" type="button" data-i18n-title="player.close" data-i18n-aria="player.closePlayer" title="Schließen" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="vp-titles">
+            <strong id="vp-title" data-i18n="player.play">Wiedergabe</strong>
+            <span id="vp-subtitle"></span>
+          </div>
+        </div>
+
+        <button id="vp-center-play" class="vp-center-play" type="button" data-i18n-aria="player.play" aria-label="Abspielen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+        </button>
+
+        <!-- U8: Countdown zur nächsten Folge, abbrechbar -->
+        <div id="vp-nextup" class="vp-nextup hidden">
+          <div class="nextup-body">
+            <span class="nextup-label" data-i18n="player.nextUp">Als Nächstes</span>
+            <strong id="nextup-title">—</strong>
+            <div class="nextup-actions">
+              <button id="nextup-play" class="play-btn" type="button">
+                <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+                Jetzt starten <span id="nextup-count">10</span>
+              </button>
+              <button id="nextup-cancel" class="outline-btn" type="button" data-i18n="player.cancel">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="vp-bottom">
+          <div class="vp-scrub" id="vp-scrub">
+            <div class="vp-track">
+              <div class="vp-buffered" id="vp-buffered"></div>
+              <div class="vp-progress" id="vp-progress"><span class="vp-knob"></span></div>
+              <div class="vp-chapter-marks" id="vp-chapter-marks"></div>
+            </div>
+            <div class="vp-hover-time" id="vp-hover-time">0:00</div>
+          </div>
+
+          <div class="vp-controls">
+            <button id="vp-play" class="icon-btn" type="button" data-i18n-title="player.playPause"  title="Abspielen/Pause" data-i18n-aria="player.play" aria-label="Abspielen">
+              <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+              <svg class="ic-pause hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
+            </button>
+
+            <button id="vp-back10" class="icon-btn" type="button" data-i18n-title="shortcuts.back10" data-i18n-aria="shortcuts.back10" title="10 Sekunden zurück" aria-label="10 Sekunden zurück">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3L7.5 6.5 12 10V7a5.5 5.5 0 1 1-5.4 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="skip-num">10</span>
+            </button>
+
+            <button id="vp-fwd10" class="icon-btn" type="button" data-i18n-title="shortcuts.forward10" data-i18n-aria="shortcuts.forward10" title="10 Sekunden vor" aria-label="10 Sekunden vor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3l4.5 3.5L12 10V7a5.5 5.5 0 1 0 5.4 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="skip-num">10</span>
+            </button>
+
+            <div class="vp-volume">
+              <button id="vp-mute" class="icon-btn" type="button" data-i18n-title="player.muteShort" title="Stumm" data-i18n-aria="player.mute" aria-label="Stumm schalten">
+                <svg class="ic-vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h3.5L13 5.5v13L8.5 14.5H5z" fill="currentColor"/><path d="M16.5 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <svg class="ic-muted hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h3.5L13 5.5v13L8.5 14.5H5z" fill="currentColor"/><path d="m16.5 10 4 4m0-4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <input id="vp-volume" type="range" min="0" max="1" step="0.01" value="1" data-i18n-aria="player.volume" aria-label="Lautstärke" />
+            </div>
+
+            <div class="vp-time"><span id="vp-current">0:00</span> / <span id="vp-duration">0:00</span></div>
+
+            <div class="vp-spacer"></div>
+
+            <div class="vp-menu-wrap">
+              <button id="vp-audio" class="icon-btn hidden" type="button" data-i18n-title="player.audioTrack" title="Sprache" data-i18n-aria="player.audioTrack" aria-label="Tonspur wählen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0v-4a4 4 0 0 0-4-4z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </button>
+              <div id="vp-audio-menu" class="vp-menu wide hidden"></div>
+            </div>
+
+            <div class="vp-menu-wrap">
+              <button id="vp-subs" class="icon-btn hidden" type="button" data-i18n-title="player.subtitleTrack" title="Untertitel" data-i18n-aria="player.subtitleTrack" aria-label="Untertitel wählen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.8 14.2h4M13.2 14.2h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+              </button>
+              <div id="vp-subs-menu" class="vp-menu wide hidden"></div>
+            </div>
+
+            <div class="vp-menu-wrap">
+              <button id="vp-chapters" class="icon-btn hidden" type="button" data-i18n-title="player.chapters" data-i18n-aria="player.chapters" title="Kapitel" aria-label="Kapitel">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 5v14M15 5v14" stroke="currentColor" stroke-width="1.7"/></svg>
+              </button>
+              <div id="vp-chapters-menu" class="vp-menu wide hidden"></div>
+            </div>
+
+            <div class="vp-menu-wrap">
+              <button id="vp-quality" class="text-btn" type="button" data-i18n-title="player.qualityShort" title="Qualität">Auto</button>
+              <div id="vp-quality-menu" class="vp-menu hidden"></div>
+            </div>
+
+            <div class="vp-menu-wrap">
+              <button id="vp-speed" class="text-btn" type="button" data-i18n-title="player.speed" title="Geschwindigkeit">1x</button>
+              <div id="vp-speed-menu" class="vp-menu hidden"></div>
+            </div>
+
+            <button id="vp-pip" class="icon-btn" type="button" data-i18n-title="player.pip" data-i18n-aria="player.pip" title="Bild-in-Bild" aria-label="Bild-in-Bild">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="12" y="11" width="7" height="5.5" rx="1" fill="currentColor"/></svg>
+            </button>
+
+            <button id="vp-fullscreen" class="icon-btn" type="button" data-i18n-title="player.fullscreen" data-i18n-aria="player.fullscreen" title="Vollbild" aria-label="Vollbild">
+              <svg class="ic-fs" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg class="ic-fs-exit hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================== MUSIC: MINI PLAYER ====================== -->
+    <div id="mini-player" class="mini-player hidden">
+      <div class="mini-progress"><div id="mini-progress-fill"></div></div>
+
+      <div class="mini-left" id="mini-expand">
+        <img id="mini-art" alt="" />
+        <div class="mini-meta">
+          <strong id="mini-title">—</strong>
+          <small id="mini-artist"></small>
+        </div>
+      </div>
+
+      <div class="mini-controls">
+        <button id="mini-prev" class="icon-btn" type="button" data-i18n-title="player.previousTrack" title="Vorheriger" data-i18n-aria="music.previous" aria-label="Vorheriger Titel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5v13M18 5.5v13L9 12z" fill="currentColor"/></svg>
+        </button>
+        <button id="mini-play" class="icon-btn play" type="button" data-i18n-title="player.playPause"  title="Abspielen/Pause" data-i18n-aria="player.play" aria-label="Abspielen">
+          <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+          <svg class="ic-pause hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
+        </button>
+        <button id="mini-next" class="icon-btn" type="button" data-i18n-title="player.nextTrack" title="Nächster" data-i18n-aria="music.next" aria-label="Nächster Titel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5.5v13M6 5.5v13L15 12z" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <div class="mini-right">
+        <span id="mini-time" class="mini-time">0:00</span>
+        <button id="mini-close" class="icon-btn" type="button" data-i18n-title="player.close" title="Schließen" data-i18n-aria="player.close" aria-label="Player schließen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================== MUSIC: FULLSCREEN + LYRICS ================== -->
+    <div id="music-full" class="music-full hidden">
+      <div class="mf-backdrop" id="mf-backdrop"></div>
+
+      <button id="mf-collapse" class="icon-btn mf-collapse" type="button" data-i18n-title="window.minimize" data-i18n-aria="window.minimize" title="Minimieren" aria-label="Minimieren">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="mf-body">
+        <div class="mf-left">
+          <div class="mf-art-wrap">
+            <img id="mf-art" alt="" />
+          </div>
+
+          <div class="mf-meta">
+            <h2 id="mf-title">—</h2>
+            <p id="mf-artist"></p>
+          </div>
+
+          <div class="mf-scrub" id="mf-scrub">
+            <div class="mf-track"><div class="mf-fill" id="mf-fill"><span class="mf-knob"></span></div></div>
+            <div class="mf-times"><span id="mf-current">0:00</span><span id="mf-duration">0:00</span></div>
+          </div>
+
+          <div class="mf-controls">
+            <button id="mf-shuffle" class="icon-btn small" type="button" title="Zufall" data-i18n-aria="music.shuffleToggle" aria-label="Zufallswiedergabe">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3.5l9 10H20M4 17h3.5l9-10H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="m17.5 4.5 2.5 2.5-2.5 2.5M17.5 14.5l2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button id="mf-prev" class="icon-btn" type="button" data-i18n-title="player.previousTrack" title="Vorheriger" data-i18n-aria="music.previous" aria-label="Vorheriger Titel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5v13M18 5.5v13L9 12z" fill="currentColor"/></svg>
+            </button>
+            <button id="mf-play" class="icon-btn big" type="button" data-i18n-title="player.playPause"  title="Abspielen/Pause" data-i18n-aria="player.play" aria-label="Abspielen">
+              <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+              <svg class="ic-pause hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
+            </button>
+            <button id="mf-next" class="icon-btn" type="button" data-i18n-title="player.nextTrack" title="Nächster" data-i18n-aria="music.next" aria-label="Nächster Titel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5.5v13M6 5.5v13L15 12z" fill="currentColor"/></svg>
+            </button>
+            <button id="mf-repeat" class="icon-btn small" type="button" title="Wiederholen" data-i18n-aria="music.repeat" aria-label="Wiederholen">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12V9.5A3.5 3.5 0 0 1 7.5 6H19M20 12v2.5a3.5 3.5 0 0 1-3.5 3.5H5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="m16.5 3 2.5 3-2.5 3M7.5 15 5 18l2.5 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+
+          <div class="mf-volume">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h3.5L13 5.5v13L8.5 14.5H5z" fill="currentColor"/></svg>
+            <input id="mf-volume" type="range" min="0" max="1" step="0.01" value="1" data-i18n-aria="player.volume" aria-label="Lautstärke" />
+          </div>
+        </div>
+
+        <div class="mf-right">
+          <div class="mf-tabs">
+            <button class="mf-tab active" data-tab="lyrics" type="button" data-i18n="music.lyrics">Songtext</button>
+            <button class="mf-tab" data-tab="queue" type="button" data-i18n="music.queue">Warteschlange</button>
+          </div>
+          <div id="mf-lyrics" class="mf-lyrics"></div>
+          <div id="mf-queue" class="mf-queue hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================= EINSTELLUNGEN ========================= -->
+    <div id="settings-modal" class="settings-overlay hidden">
+      <div class="settings-shell">
+        <!-- Seitenleiste mit Kategorien -->
+        <aside class="settings-nav">
+          <div class="settings-nav-head">
+            <h2 data-i18n="settings.title">Einstellungen</h2>
+          </div>
+
+          <nav class="settings-cats" id="settings-cats">
+            <button class="settings-cat active" type="button" data-cat="design">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><path d="M12 3a9 9 0 1 0 0 18c.85 0 1.5-.65 1.5-1.5 0-.4-.15-.75-.4-1-.25-.28-.4-.62-.4-1 0-.85.65-1.5 1.5-1.5h1.8A5.2 5.2 0 0 0 21 10.8C21 6.5 16.97 3 12 3z"/></svg>
+              <span data-i18n="settings.catDesign">Darstellung</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="language">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><path d="M12 3c2.5 2.4 3.8 5.5 3.8 9S14.5 18.6 12 21c-2.5-2.4-3.8-5.5-3.8-9S9.5 5.4 12 3z"/></svg>
+              <span data-i18n="settings.catLanguage">Sprache</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="playback">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none"/></svg>
+              <span data-i18n="settings.catPlayback">Wiedergabe</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="subtitles">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M6.5 14h4M13 14h4.5M6.5 10.5h2.5M11.5 10.5h6"/></svg>
+              <span data-i18n="settings.catSubtitles">Untertitel</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="downloads">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10.5 12 14.5l4-4"/><path d="M5 17v1.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V17"/></svg>
+              <span data-i18n="settings.catDownloads">Downloads</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="servers">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5v.01M7 16.5v.01"/></svg>
+              <span data-i18n="settings.catServers">Server</span>
+            </button>
+
+            <button class="settings-cat" type="button" data-cat="about">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.4"/></svg>
+              <span data-i18n="settings.catAbout">Über</span>
+            </button>
+          </nav>
+
+          <!-- Footer: Projektlinks -->
+          <div class="settings-footer">
+            <a class="link-badge github" id="link-github" href="#" target="_blank" rel="noopener noreferrer"
+               data-i18n-title="footer.githubTitle" title="Projekt auf GitHub">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.22-3.37-1.22-.46-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.9 9.9 0 0 1 5.01 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+              <span data-i18n="footer.github">GitHub</span>
+            </a>
+
+            <a class="link-badge kofi" id="link-kofi" href="#" target="_blank" rel="noopener noreferrer"
+               data-i18n-title="footer.kofiTitle" title="Auf Ko-fi unterstützen">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M4 4h13.2A4.8 4.8 0 0 1 22 8.8c0 2.65-2.15 4.8-4.8 4.8h-.9A5.5 5.5 0 0 1 11 18H8a5 5 0 0 1-5-5V5a1 1 0 0 1 1-1zm12.5 7.6h.7a2.8 2.8 0 0 0 0-5.6h-.7v5.6zM4.5 20.5h13a1 1 0 0 1 0 2h-13a1 1 0 0 1 0-2z"/></svg>
+              <span data-i18n="footer.kofi">Ko-fi</span>
+            </a>
+          </div>
+        </aside>
+
+        <!-- Inhalt der gewählten Kategorie -->
+        <div class="settings-main">
+          <button id="settings-close" class="settings-close" type="button"
+                  data-i18n-aria="settings.close" aria-label="Einstellungen schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+
+          <div class="settings-panels" id="settings-panels">
+
+            <!-- ============ DARSTELLUNG ============ -->
+            <div class="settings-panel active" data-panel="design">
+              <section class="settings-section">
+                <h3 data-i18n="settings.theme">Design</h3>
+                <p class="settings-hint" data-i18n="settings.themeHint">Farbschema der Oberfläche.</p>
+                <div id="theme-grid" class="theme-grid"></div>
+              </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="settings.accent">Akzentfarbe</h3>
+                <p class="settings-hint" data-i18n="settings.accentHint">Eigene Farbe für Knöpfe und Hervorhebungen.</p>
+                <div class="accent-row">
+                  <div id="accent-swatches" class="accent-swatches"></div>
+                  <label class="accent-custom">
+                    <input type="color" id="accent-picker" value="#1ecad3" />
+                    <span data-i18n="settings.accentCustom">Eigene</span>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="settings.interface">Oberfläche</h3>
+                <div class="slider-row">
+                  <label for="ui-scale" data-i18n="settings.fontSize">Schriftgröße</label>
+                  <input type="range" id="ui-scale" min="0.85" max="1.3" step="0.05" value="1" />
+                  <span class="val" id="ui-scale-val">100 %</span>
+                </div>
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.cardSize">Kartengröße</strong>
+                    <small data-i18n="settings.cardSizeHint">Wie groß die Kacheln in den Listen sind</small>
+                  </span>
+                  <select id="card-size" class="select-input">
+                    <option value="compact" data-i18n="settings.cardCompact">Kompakt</option>
+                    <option value="normal" data-i18n="settings.cardNormal">Normal</option>
+                    <option value="large" data-i18n="settings.cardLarge">Groß</option>
+                  </select>
+                </div>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.reduceMotion">Animationen reduzieren</strong>
+                    <small data-i18n="settings.reduceMotionHint">Übergänge und Bewegungen abschalten</small>
+                  </span>
+                  <input type="checkbox" id="set-reduce-motion" class="switch" />
+                </label>
+              </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="settings.customCss">Eigenes CSS</h3>
+                <p class="settings-hint" data-i18n="settings.customCssHint">Überschreibt das gewählte Theme. Die Vorlage enthält alle verfügbaren Farbvariablen als Startpunkt.</p>
+
+                <label class="setting-row" style="padding-top:0">
+                  <span>
+                    <strong data-i18n="settings.customCssEnable">Eigenes CSS anwenden</strong>
+                    <small data-i18n="settings.customCssEnableHint">Ausschalten behält den Text, ohne ihn zu benutzen</small>
+                  </span>
+                  <input type="checkbox" id="css-enabled" class="switch" checked />
+                </label>
+
+                <div class="css-editor-wrap">
+                  <textarea id="css-editor" class="css-editor" spellcheck="false" rows="14"
+                            data-i18n-placeholder="settings.customCssPlaceholder"
+                            placeholder="/* Hier eigenes CSS einfügen — oder rechts die Vorlage laden */"></textarea>
+                  <div id="css-status" class="css-status" aria-live="polite"></div>
+                </div>
+
+                <div class="css-actions">
+                  <button class="primary-btn small" id="css-save" type="button" data-i18n="settings.cssSave">Speichern</button>
+                  <button class="outline-btn small" id="css-copy" type="button"
+                          data-i18n="settings.cssCopy" data-i18n-title="settings.cssCopyTitle"
+                          title="Vorlage in die Zwischenablage kopieren">Vorlage kopieren</button>
+                  <button class="outline-btn small" id="css-insert" type="button"
+                          data-i18n="settings.cssInsert" data-i18n-title="settings.cssInsertTitle"
+                          title="Vorlage in den Editor einsetzen">Vorlage einsetzen</button>
+                  <button class="outline-btn small" id="css-reset" type="button" data-i18n="settings.cssReset">Zurücksetzen</button>
+                </div>
+
+                <div class="css-save-theme">
+                  <div class="field-input">
+                    <input id="css-theme-name" type="text"
+                           data-i18n-placeholder="settings.cssThemeName"
+                           placeholder="Als eigenes Theme speichern unter..." />
+                    <button type="button" class="ghost-icon" id="css-theme-save"
+                            data-i18n-title="settings.cssThemeSave" data-i18n-aria="settings.cssThemeSave"
+                            title="Theme speichern" aria-label="Theme speichern">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <!-- ============ SPRACHE ============ -->
+            <div class="settings-panel" data-panel="language">
+              <section class="settings-section">
+                <h3 data-i18n="settings.language">Sprache</h3>
+                <p class="settings-hint" data-i18n="settings.languageHint">Sprache der Oberfläche wählen. Übersetzungen sind willkommen — das Projekt ist quelloffen.</p>
+
+                <div id="language-list" class="language-list"></div>
+
+                <div class="language-actions">
+                  <button class="outline-btn small" id="lang-folder" type="button" data-i18n="settings.languageOpenFolder">Sprachordner öffnen</button>
+                  <button class="outline-btn small" id="lang-check" type="button" data-i18n="settings.languageCheck">Nach Sprachen suchen</button>
+                  <span class="lang-status" id="lang-status" aria-live="polite"></span>
+                </div>
+
+                <p class="settings-hint language-contribute" data-i18n="settings.languageContribute">Deine Sprache fehlt? Lege eine .json-Datei im Sprachordner ab oder schicke einen Pull Request auf GitHub.</p>
+              </section>
+            </div>
+
+            <!-- ============ WIEDERGABE ============ -->
+            <div class="settings-panel" data-panel="playback">
+              <section class="settings-section">
+                <h3 data-i18n="settings.playback">Wiedergabe</h3>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.autoplay">Nächste Folge automatisch</strong>
+                    <small data-i18n="settings.autoplayHint">Am Ende direkt weiterspielen</small>
+                  </span>
+                  <input type="checkbox" id="set-autoplay" class="switch" checked />
+                </label>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.preferSubs">Untertitel bevorzugen</strong>
+                    <small data-i18n="settings.preferSubsHint">Falls verfügbar, automatisch einschalten</small>
+                  </span>
+                  <input type="checkbox" id="set-subs" class="switch" />
+                </label>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.resume">Wiedergabe fortsetzen</strong>
+                    <small data-i18n="settings.resumeHint">An der zuletzt gesehenen Stelle starten</small>
+                  </span>
+                  <input type="checkbox" id="set-resume" class="switch" checked />
+                </label>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.showNextup">„Nächste Folge"-Einblendung</strong>
+                    <small data-i18n="settings.showNextupHint">Countdown am Ende einer Folge zeigen</small>
+                  </span>
+                  <input type="checkbox" id="set-nextup" class="switch" checked />
+                </label>
+
+                <div class="slider-row">
+                  <label for="start-volume" data-i18n="settings.startVolume">Startlautstärke</label>
+                  <input type="range" id="start-volume" min="0" max="1" step="0.05" value="1" />
+                  <span class="val" id="start-volume-val">100 %</span>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.seekStep">Sprungweite</strong>
+                    <small data-i18n="settings.seekStepHint">Wie weit die Pfeiltasten springen</small>
+                  </span>
+                  <select id="seek-step" class="select-input"></select>
+                </div>
+
+                <div class="slider-row">
+                  <label for="nextup-seconds" data-i18n="settings.nextupSeconds">Countdown-Dauer</label>
+                  <input type="range" id="nextup-seconds" min="3" max="30" step="1" value="12" />
+                  <span class="val" id="nextup-seconds-val">12 s</span>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="settings.lyrics">Songtext</h3>
+                <div class="slider-row">
+                  <label for="lyrics-offset" data-i18n="settings.lyricsOffset">Zeitversatz</label>
+                  <input type="range" id="lyrics-offset" min="-5" max="5" step="0.1" value="0" />
+                  <span class="val" id="lyrics-offset-val">0,0 s</span>
+                </div>
+                <p class="settings-hint" data-i18n="settings.lyricsHint">Negative Werte zeigen den Text früher an.</p>
+              </section>
+            </div>
+
+            <!-- ============ UNTERTITEL ============ -->
+            <div class="settings-panel" data-panel="subtitles">
+              <section class="settings-section">
+                <h3 data-i18n="settings.subtitles">Untertitel</h3>
+                <p class="settings-hint" data-i18n="settings.subtitlesHint">Darstellung im Video.</p>
+                <div class="sub-preview" id="sub-preview"><span data-i18n="settings.subPreview">Beispieltext für Untertitel</span></div>
+                <div class="slider-row">
+                  <label for="sub-size" data-i18n="settings.subSize">Größe</label>
+                  <input type="range" id="sub-size" min="0.7" max="2" step="0.05" value="1" />
+                  <span class="val" id="sub-size-val">100 %</span>
+                </div>
+                <div class="slider-row">
+                  <label for="sub-bg" data-i18n="settings.subBackground">Hintergrund</label>
+                  <input type="range" id="sub-bg" min="0" max="1" step="0.05" value="0.76" />
+                  <span class="val" id="sub-bg-val">76 %</span>
+                </div>
+                <div class="slider-row">
+                  <label for="sub-color" data-i18n="settings.subColor">Textfarbe</label>
+                  <input type="color" id="sub-color" value="#ffffff" />
+                  <span class="val"></span>
+                </div>
+                <div class="slider-row">
+                  <label for="sub-position" data-i18n="settings.subPosition">Höhe</label>
+                  <input type="range" id="sub-position" min="0" max="160" step="5" value="0" />
+                  <span class="val" id="sub-position-val">Standard</span>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.subFont">Schriftart</strong>
+                    <small data-i18n="settings.subFontHint">Für die Untertitel im Video</small>
+                  </span>
+                  <select id="sub-font" class="select-input">
+                    <option value="system" data-i18n="settings.fontSystem">System</option>
+                    <option value="sans" data-i18n="settings.fontSans">Serifenlos</option>
+                    <option value="serif" data-i18n="settings.fontSerif">Serif</option>
+                    <option value="rounded" data-i18n="settings.fontRounded">Rund</option>
+                    <option value="mono" data-i18n="settings.fontMono">Monospace</option>
+                  </select>
+                </div>
+
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.subOutline">Umrandung statt Kasten</strong>
+                    <small data-i18n="settings.subOutlineHint">Schwarze Kontur um den Text, kein Hintergrund</small>
+                  </span>
+                  <input type="checkbox" id="sub-outline" class="switch" />
+                </label>
+              </section>
+            </div>
+
+            <!-- ============ DOWNLOADS ============ -->
+            <div class="settings-panel" data-panel="downloads">
+              <section class="settings-section">
+                <h3 data-i18n="settings.downloads">Downloads</h3>
+                <p class="settings-hint" data-i18n="settings.downloadsHint">Heruntergeladene Titel lassen sich ohne Server abspielen.</p>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.storageLocation">Speicherort</strong>
+                    <small id="dl-dir-path">—</small>
+                  </span>
+                  <span class="dl-dir-actions">
+                    <button class="outline-btn small" id="dl-choose-dir" type="button" data-i18n="settings.change">Ändern</button>
+                    <button class="outline-btn small" id="dl-open-dir" type="button" data-i18n="settings.open">Öffnen</button>
+                  </span>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.storageUsed">Belegter Speicher</strong>
+                    <small id="dl-usage">—</small>
+                  </span>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.defaultQuality">Standardqualität</strong>
+                    <small data-i18n="settings.defaultQualityHint">Was beim Download vorgeschlagen wird</small>
+                  </span>
+                  <select id="dl-quality" class="select-input">
+                    <option value="ask" data-i18n="settings.askEveryTime">Jedes Mal fragen</option>
+                    <option value="original" data-i18n="download.original">Originaldatei</option>
+                    <option value="1080" data-i18n="download.1080">1080p · 8 Mbit</option>
+                    <option value="720" data-i18n="download.720">720p · 4 Mbit</option>
+                    <option value="480" data-i18n="download.480">480p · 1,5 Mbit</option>
+                  </select>
+                </div>
+
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.deleteWatched">Nach dem Ansehen löschen</strong>
+                    <small data-i18n="settings.deleteWatchedHint">Gesehene Folgen automatisch entfernen</small>
+                  </span>
+                  <input type="checkbox" id="dl-delete-watched" class="switch" />
+                </label>
+              </section>
+            </div>
+
+            <!-- ============ SERVER ============ -->
+            <div class="settings-panel" data-panel="servers">
+              <section class="settings-section">
+                <h3 data-i18n="settings.servers">Server</h3>
+                <div id="settings-servers" class="settings-servers"></div>
+              </section>
+            </div>
+
+            <!-- ============ ÜBER ============ -->
+            <div class="settings-panel" data-panel="about">
+              <section class="settings-section">
+                <h3 data-i18n="settings.about">Über</h3>
+                <div class="about-grid">
+                  <div><dt data-i18n="settings.application">Anwendung</dt><dd id="about-app">Jellystream</dd></div>
+                  <div><dt data-i18n="settings.server">Server</dt><dd id="about-server">—</dd></div>
+                  <div><dt data-i18n="settings.version">Version</dt><dd id="about-version">—</dd></div>
+                  <div><dt data-i18n="settings.signedInAs">Angemeldet als</dt><dd id="about-user">—</dd></div>
+                </div>
+              </section>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================== SERVER HINZUFÜGEN ====================== -->
+    <div id="server-modal" class="modal hidden">
+      <div class="modal-card small">
+        <div class="modal-head">
+          <h2 data-i18n="server.add">Server hinzufügen</h2>
+          <button id="server-close" class="icon-btn" type="button" data-i18n-aria="common.close" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <form id="server-form" class="modal-body">
+          <div class="field">
+            <label for="new-server-url" data-i18n="server.address">Server-Adresse</label>
+            <div class="field-input">
+              <input id="new-server-url" type="text" placeholder="http://192.168.1.50:8096" spellcheck="false" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="new-username" data-i18n="login.username">Benutzername</label>
+            <div class="field-input">
+              <input id="new-username" type="text" data-i18n-placeholder="login.usernamePlaceholder" placeholder="Benutzername" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="new-password" data-i18n="login.password">Passwort</label>
+            <div class="field-input">
+              <input id="new-password" type="password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Passwort" />
+            </div>
+          </div>
+
+          <div id="server-error" class="auth-error" aria-live="polite"></div>
+
+          <button type="submit" id="server-submit" class="primary-btn">
+            <span class="btn-label" data-i18n="server.connect">Verbinden und wechseln</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ====================== PLAYLIST-DIALOG ====================== -->
+    <div id="playlist-modal" class="modal hidden">
+      <div class="modal-card small">
+        <div class="modal-head">
+          <h2 id="playlist-modal-title" data-i18n="playlist.title">Zu Playlist hinzufügen</h2>
+          <button id="playlist-close" class="icon-btn" type="button" data-i18n-aria="common.close" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div id="playlist-picker" class="playlist-picker"></div>
+
+          <form id="playlist-form" class="new-playlist">
+            <div class="field-input">
+              <input id="new-playlist-name" type="text" data-i18n-placeholder="playlist.newPlaceholder" placeholder="Neue Playlist erstellen..." />
+              <button type="submit" class="ghost-icon" data-i18n-title="playlist.create" data-i18n-aria="playlist.create" title="Erstellen" aria-label="Erstellen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+          </form>
+
+          <div id="playlist-error" class="auth-error" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================== DOWNLOAD-DIALOG ====================== -->
+    <div id="dl-modal" class="modal hidden">
+      <div class="modal-card small">
+        <div class="modal-head">
+          <h2 id="dl-modal-title" data-i18n="card.download">Herunterladen</h2>
+          <button id="dl-close" class="icon-btn" type="button" data-i18n-aria="common.close" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <p class="settings-hint" data-i18n="download.hint">Qualität wählen. Die Originaldatei ist ein unveränderter Abzug vom Server, die anderen Stufen rechnet der Server kleiner.</p>
+          <div id="dl-options" class="dl-options"></div>
+          <div id="dl-error" class="auth-error" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- U7: Tastenkürzel (Taste ?) -->
+    <div id="shortcuts-modal" class="modal hidden">
+      <div class="modal-card small">
+        <div class="modal-head">
+          <h2 data-i18n="shortcuts.title">Tastenkürzel</h2>
+          <button id="shortcuts-close" class="icon-btn" type="button" data-i18n-aria="common.close" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <section class="settings-section">
+            <h3 data-i18n="detail.video">Video</h3>
+            <dl class="keys">
+              <div><dt><kbd>Leer</kbd> <kbd>K</kbd></dt><dd data-i18n="shortcuts.playPause">Abspielen / Pause</dd></div>
+              <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd data-i18n="shortcuts.back5">5 Sekunden springen</dd></div>
+              <div><dt><kbd>J</kbd> <kbd>L</kbd></dt><dd data-i18n="shortcuts.back10">10 Sekunden springen</dd></div>
+              <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd data-i18n="shortcuts.volume">Lautstärke</dd></div>
+              <div><dt><kbd>F</kbd></dt><dd data-i18n="shortcuts.fullscreen">Vollbild</dd></div>
+              <div><dt><kbd>M</kbd></dt><dd data-i18n="shortcuts.mute">Stumm</dd></div>
+              <div><dt><kbd>C</kbd></dt><dd data-i18n="player.subtitleTrack">Untertitel an / aus</dd></div>
+              <div><dt><kbd>N</kbd></dt><dd data-i18n="player.nextUp">Nächste Folge</dd></div>
+              <div><dt><kbd>Esc</kbd></dt><dd data-i18n="shortcuts.close">Schließen</dd></div>
+            </dl>
+          </section>
+          <section class="settings-section">
+            <h3 data-i18n="music.title">Musik</h3>
+            <dl class="keys">
+              <div><dt><kbd>Leer</kbd></dt><dd data-i18n="shortcuts.playPause">Abspielen / Pause</dd></div>
+              <div><dt><kbd>Strg</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd data-i18n="music.next">Titel wechseln</dd></div>
+            </dl>
+          </section>
+          <section class="settings-section">
+            <h3 data-i18n="settings.interface">Allgemein</h3>
+            <dl class="keys">
+              <div><dt><kbd>/</kbd></dt><dd data-i18n="shortcuts.search">Suche</dd></div>
+              <div><dt><kbd>?</kbd></dt><dd data-i18n="shortcuts.help">Diese Übersicht</dd></div>
+              <div><dt><kbd>Alt</kbd> <kbd>←</kbd></dt><dd data-i18n="nav.back">Zurück</dd></div>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <audio id="audio-el"></audio>
+
+    <script src="i18n.js"></script>
+    <script src="renderer.js"></script>
+    <script src="offline.js"></script>
+    <script src="player.js"></script>
+    <script src="settings.js"></script>
+  </body>
+</html>

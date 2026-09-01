@@ -1,0 +1,827 @@
+<title>Jellystream Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+
+<style>
+  :root {
+    --ground: #eaedf2;
+    --surface: #ffffff;
+    --surface-2: #f4f6f9;
+    --ink: #11151b;
+    --muted: #59636f;
+    --faint: #8b94a1;
+    --line: rgba(17, 21, 27, 0.12);
+    --line-soft: rgba(17, 21, 27, 0.07);
+    --accent: #5b4bd6;
+    --accent-ink: #ffffff;
+
+    --sev-hoch: #c8242f;
+    --sev-mittel: #b06a10;
+    --sev-niedrig: #4d5966;
+    --sev-hoch-bg: rgba(200, 36, 47, 0.1);
+    --sev-mittel-bg: rgba(176, 106, 16, 0.12);
+    --sev-niedrig-bg: rgba(77, 89, 102, 0.1);
+
+    --shadow: 0 1px 2px rgba(17, 21, 27, 0.06), 0 8px 24px rgba(17, 21, 27, 0.06);
+
+    --display: "Chivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0c0f13;
+      --surface: #14181f;
+      --surface-2: #1a1f27;
+      --ink: #e7ebf1;
+      --muted: #96a0ad;
+      --faint: #6d7784;
+      --line: rgba(231, 235, 241, 0.14);
+      --line-soft: rgba(231, 235, 241, 0.08);
+      --accent: #9d8cff;
+      --accent-ink: #14181f;
+
+      --sev-hoch: #ff7b7b;
+      --sev-mittel: #f0b25a;
+      --sev-niedrig: #9aa5b3;
+      --sev-hoch-bg: rgba(255, 123, 123, 0.14);
+      --sev-mittel-bg: rgba(240, 178, 90, 0.14);
+      --sev-niedrig-bg: rgba(154, 165, 179, 0.12);
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.32);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0c0f13;
+    --surface: #14181f;
+    --surface-2: #1a1f27;
+    --ink: #e7ebf1;
+    --muted: #96a0ad;
+    --faint: #6d7784;
+    --line: rgba(231, 235, 241, 0.14);
+    --line-soft: rgba(231, 235, 241, 0.08);
+    --accent: #9d8cff;
+    --accent-ink: #14181f;
+
+    --sev-hoch: #ff7b7b;
+    --sev-mittel: #f0b25a;
+    --sev-niedrig: #9aa5b3;
+    --sev-hoch-bg: rgba(255, 123, 123, 0.14);
+    --sev-mittel-bg: rgba(240, 178, 90, 0.14);
+    --sev-niedrig-bg: rgba(154, 165, 179, 0.12);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.32);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 28px 90px;
+  }
+
+  /* ---------------- Kopf ---------------- */
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 30px;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(2.3rem, 6vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    max-width: 62ch;
+    color: var(--muted);
+    font-size: 1.06rem;
+    margin: 0;
+  }
+
+  /* ---------------- Kennzahlen ---------------- */
+  .tallies {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 1px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+    margin: 30px 0 34px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .tally {
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+
+  .tally .num {
+    display: block;
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 2.05rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tally .lab {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .tally.is-hoch .num { color: var(--sev-hoch); }
+  .tally.is-mittel .num { color: var(--sev-mittel); }
+  .tally.is-niedrig .num { color: var(--sev-niedrig); }
+
+  /* ---------------- Empfehlung ---------------- */
+  .headline-box {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px 10px 10px 4px;
+    padding: 22px 24px;
+    margin-bottom: 40px;
+    box-shadow: var(--shadow);
+  }
+
+  .headline-box h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 1.12rem;
+    letter-spacing: -0.015em;
+    margin: 0 0 12px;
+  }
+
+  .headline-box ol {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+  }
+
+  .headline-box strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------------- Filter ---------------- */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 0;
+    margin-bottom: 8px;
+    background: linear-gradient(180deg, var(--ground) 72%, transparent);
+  }
+
+  .toolbar .group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chipbtn {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  }
+
+  .chipbtn:hover { border-color: var(--faint); color: var(--ink); }
+
+  .chipbtn[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--ground);
+  }
+
+  .counter {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------- Befunde ---------------- */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 34px 0 12px;
+  }
+
+  .section-head h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 1.28rem;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .section-head .rule {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .section-head .n {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .findings { display: grid; gap: 1px; background: var(--line-soft); border-radius: 10px; overflow: hidden; border: 1px solid var(--line-soft); }
+
+  .finding {
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 0 16px;
+    align-items: start;
+    padding: 16px 18px 17px;
+    background: var(--surface);
+    border-left: 3px solid transparent;
+  }
+
+  .finding[data-sev="hoch"] { border-left-color: var(--sev-hoch); }
+  .finding[data-sev="mittel"] { border-left-color: var(--sev-mittel); }
+  .finding[data-sev="niedrig"] { border-left-color: var(--sev-niedrig); }
+
+  .fid {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--faint);
+    padding-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fbody h3 {
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.4;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+
+  .fbody p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-width: 68ch;
+  }
+
+  .evidence {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 9px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 0.73rem;
+    color: var(--muted);
+  }
+
+  .evidence b { color: var(--ink); font-weight: 700; }
+
+  .fmeta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    padding-top: 1px;
+  }
+
+  .pill {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .pill.hoch { background: var(--sev-hoch-bg); color: var(--sev-hoch); }
+  .pill.mittel { background: var(--sev-mittel-bg); color: var(--sev-mittel); }
+  .pill.niedrig { background: var(--sev-niedrig-bg); color: var(--sev-niedrig); }
+
+  .effort {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+
+  .verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .verified::before {
+    content: "";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .empty {
+    padding: 40px 18px;
+    text-align: center;
+    color: var(--faint);
+    background: var(--surface);
+    font-size: 0.94rem;
+  }
+
+  /* ---------------- Fuß ---------------- */
+  .legend {
+    margin-top: 46px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 8px;
+    color: var(--faint);
+    font-size: 0.85rem;
+    max-width: 70ch;
+  }
+
+  .legend b { color: var(--muted); font-weight: 600; }
+
+  :where(a, button):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 36px 18px 70px; }
+    .finding { grid-template-columns: 44px 1fr; }
+    .fmeta { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; margin-top: 9px; }
+    .toolbar { position: static; }
+    .counter { margin-left: 0; width: 100%; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">Code-Durchsicht · 31. August 2026</span>
+    <h1>Was am Client noch besser werden kann</h1>
+    <p class="standfirst">
+      28 Befunde aus dem laufenden Stand von <span style="font-family:var(--mono);font-size:0.94em">renderer.js</span>,
+      <span style="font-family:var(--mono);font-size:0.94em">player.js</span> und
+      <span style="font-family:var(--mono);font-size:0.94em">settings.js</span> — sortiert nach Wirkung, mit Aufwandsschätzung.
+      Vier davon habe ich zur Kontrolle nachgemessen statt nur gelesen.
+    </p>
+  </header>
+
+  <div class="tallies">
+    <div class="tally is-hoch"><span class="num">9</span><span class="lab">Hoch</span></div>
+    <div class="tally is-mittel"><span class="num">11</span><span class="lab">Mittel</span></div>
+    <div class="tally is-niedrig"><span class="num">8</span><span class="lab">Niedrig</span></div>
+    <div class="tally"><span class="num">4</span><span class="lab">Gemessen</span></div>
+    <div class="tally"><span class="num">13</span><span class="lab">Schnell erledigt</span></div>
+  </div>
+
+  <div class="headline-box">
+    <h2>Wenn du nur drei Dinge angehst</h2>
+    <ol>
+      <li><strong>F1 — Listener-Leck.</strong> Nachgemessen: Jede geöffnete Detailseite hinterlässt dauerhaft einen Ereignis-Empfänger. Kleine Ursache, wächst aber mit jeder Minute Nutzung.</li>
+      <li><strong>P2 + U5 — Bibliothek endet bei 400.</strong> Alles darüber ist unerreichbar, und ohne Sortierung oder Filter findet man in großen Sammlungen ohnehin schwer etwas.</li>
+      <li><strong>A1 + A2 — Bedienung per Tastatur.</strong> Kein sichtbarer Fokus, Dialoge halten den Fokus nicht fest. Betrifft jeden, der ohne Maus arbeitet.</li>
+    </ol>
+  </div>
+
+  <nav class="toolbar" aria-label="Befunde filtern">
+    <div class="group" role="group" aria-label="Nach Dringlichkeit">
+      <button class="chipbtn" data-sev="alle" aria-pressed="true" type="button">Alle</button>
+      <button class="chipbtn" data-sev="hoch" aria-pressed="false" type="button">Hoch</button>
+      <button class="chipbtn" data-sev="mittel" aria-pressed="false" type="button">Mittel</button>
+      <button class="chipbtn" data-sev="niedrig" aria-pressed="false" type="button">Niedrig</button>
+    </div>
+    <div class="group" role="group" aria-label="Nur Gemessene">
+      <button class="chipbtn" data-only-verified="1" aria-pressed="false" type="button">Nur gemessen</button>
+    </div>
+    <span class="counter" id="counter">28 von 28</span>
+  </nav>
+
+  <main id="list">
+
+    <section data-group>
+      <div class="section-head"><h2>Fehler &amp; Zuverlässigkeit</h2><span class="rule"></span><span class="n" data-count>5</span></div>
+      <div class="findings">
+
+        <article class="finding" data-sev="hoch" data-verified="1">
+          <span class="fid">F1</span>
+          <div class="fbody">
+            <h3>Jede Detailseite hinterlässt einen Ereignis-Empfänger</h3>
+            <p><code>renderEpisodesPanel</code> hängt einen Klick-Empfänger an <code>document</code>, der beim Verlassen der Seite nie entfernt wird. Sie stapeln sich über die gesamte Sitzung.</p>
+            <span class="evidence">Gemessen: nach 5× Öffnen → <b>6 Empfänger</b>, Tendenz linear</span>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 30 Min</span><span class="verified">gemessen</span></div>
+        </article>
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">F2</span>
+          <div class="fbody">
+            <h3>Wettlauf zwischen Suchanfragen</h3>
+            <p>Weder <code>runSearch</code> noch <code>loadEpisodes</code> brechen die vorherige Anfrage ab. Antwortet eine ältere Abfrage später als eine neuere, überschreibt sie das aktuelle Ergebnis — man sieht dann Treffer zum vorherigen Suchwort.</p>
+            <span class="evidence">Abhilfe: <b>AbortController</b> oder Sequenznummer je Anfrage</span>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 1 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">F3</span>
+          <div class="fbody">
+            <h3>Abgelaufene Anmeldung endet in einer nackten Fehlermeldung</h3>
+            <p>Wird das Token während der Nutzung ungültig, wirft <code>api()</code> nur „401" in die Ansicht. Es gibt keinen Rücksprung zum Login und keinen Hinweis, was zu tun ist.</p>
+            <span class="evidence">Nötig: 401 zentral abfangen → Sitzung verwerfen, Login zeigen</span>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 1 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">F4</span>
+          <div class="fbody">
+            <h3>Fehleranzeigen sind Sackgassen</h3>
+            <p>Schlägt das Laden fehl, bleibt nur ein Text stehen. Kein „Erneut versuchen", kein Weg zurück — bei einem kurzen Netzaussetzer hilft nur ein Neustart der App.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 45 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">F5</span>
+          <div class="fbody">
+            <h3>Kein Lebenszeichen bei langer Wiedergabe</h3>
+            <p>Start, Fortschritt und Stopp werden gemeldet, aber <code>Sessions/Playing/Ping</code> nicht. Bei sehr langen Filmen kann der Server die Sitzung für tot halten und den Transcode beenden.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 20 Min</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <section data-group>
+      <div class="section-head"><h2>Bedienung &amp; Oberfläche</h2><span class="rule"></span><span class="n" data-count>8</span></div>
+      <div class="findings">
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">U1</span>
+          <div class="fbody">
+            <h3>Keine Sortierung und keine Filter</h3>
+            <p>Bibliotheken zeigen alles alphabetisch. Es fehlt, wonach man tatsächlich sucht: Genre, Jahr, Bewertung, „nur ungesehen", zuletzt hinzugefügt. Bei mehr als ein paar Dutzend Titeln wird Stöbern mühsam.</p>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 3 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel" data-verified="1">
+          <span class="fid">U2</span>
+          <div class="fbody">
+            <h3>Lautstärke wird nicht gemerkt</h3>
+            <p>Jeder Start beginnt wieder bei voller Lautstärke — auch die Stummschaltung hält nicht. Der Wert gehört zu den Einstellungen, die es schon gibt.</p>
+            <span class="evidence">Geprüft: <b>keine Speicherung</b> von <code>volume</code> im Code</span>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 20 Min</span><span class="verified">gemessen</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">U3</span>
+          <div class="fbody">
+            <h3>Reihen lassen sich nur mit dem Rad schieben</h3>
+            <p>Die waagerechten Reihen haben keine Pfeile am Rand. Prime blendet sie beim Überfahren ein — ohne Maus mit Rad kommt man derzeit schwer durch lange Reihen.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 1 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">U4</span>
+          <div class="fbody">
+            <h3>Ladezustand springt</h3>
+            <p>Beim Laden erscheint ein Kreisel, danach schlägt der Inhalt auf einmal um. Platzhalter in Kartenform würden das Springen vermeiden und die Wartezeit kürzer wirken lassen.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 2 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">U5</span>
+          <div class="fbody">
+            <h3>„Weiterschauen" lässt sich nicht aufräumen</h3>
+            <p>Ein versehentlich angespielter Film bleibt dauerhaft in der Reihe. Es fehlt „Aus der Liste entfernen" bzw. „Als gesehen markieren" direkt auf der Karte.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 45 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">U6</span>
+          <div class="fbody">
+            <h3>Folgen einzeln als gesehen markieren fehlt</h3>
+            <p>In der Folgenliste gibt es keinen Haken pro Zeile. Wer eine Folge woanders gesehen hat, kann den Stand nicht korrigieren.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 45 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">U7</span>
+          <div class="fbody">
+            <h3>Tastenkürzel sind nicht auffindbar</h3>
+            <p>Leertaste, Pfeile, F und M funktionieren im Player — nirgends steht das. Ein Overlay auf <code>?</code> würde reichen.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 45 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">U8</span>
+          <div class="fbody">
+            <h3>Nächste Folge startet ohne Vorwarnung</h3>
+            <p>Am Ende springt der Player sofort weiter. Üblich ist eine Karte mit Countdown und „Abbrechen" — gerade beim Einschlafen hilfreich.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 2 Std</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <section data-group>
+      <div class="section-head"><h2>Fehlende Funktionen</h2><span class="rule"></span><span class="n" data-count>8</span></div>
+      <div class="findings">
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">X1</span>
+          <div class="fbody">
+            <h3>Keine Qualitätswahl fürs Streaming</h3>
+            <p>Es wird immer die volle Datei gestreamt. Von unterwegs oder über schwaches WLAN bricht das ab, weil sich keine geringere Bitrate wählen lässt. Der Transcoding-Weg im Player existiert bereits — es fehlt nur die Auswahl.</p>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 2 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">X2</span>
+          <div class="fbody">
+            <h3>Kapitelmarken bleiben ungenutzt</h3>
+            <p>Jellyfin liefert zu vielen Dateien Kapitel mit. Damit ließen sich Marken in der Fortschrittsleiste und ein Sprung zum nächsten Kapitel anbieten — praktisch zum Überspringen von Vorspännen.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 2 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">X3</span>
+          <div class="fbody">
+            <h3>Warteschlange lässt sich nicht umsortieren</h3>
+            <p>Titel können weder verschoben noch als „Nächstes abspielen" eingereiht oder einzeln entfernt werden. Für längeres Musikhören ist das die spürbarste Lücke.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 3 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">X4</span>
+          <div class="fbody">
+            <h3>Favoriten haben keine eigene Ansicht</h3>
+            <p>Merken funktioniert, aber Gemerktes erscheint nur als Reihe auf der Startseite. Ein eigener Punkt „Meine Liste" wäre der naheliegende Ort.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 30 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">X5</span>
+          <div class="fbody">
+            <h3>Untertitel-Darstellung nicht einstellbar</h3>
+            <p>Größe, Farbe und Hintergrund sind fest verdrahtet. Wer Untertitel dauerhaft nutzt, will das anpassen können.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 1 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">X6</span>
+          <div class="fbody">
+            <h3>Songtext ohne Zeitversatz und Scroll-Stopp</h3>
+            <p>Läuft der Text der Musik voraus oder hinterher, lässt sich nichts justieren. Und scrollt man selbst nach oben, reißt die Automatik den Text sofort zurück.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 1 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">X7</span>
+          <div class="fbody">
+            <h3>Wiedergabeliste überlebt keinen Neustart</h3>
+            <p>Nach dem Schließen ist die Warteschlange leer. Angespielter Titel und Position ließen sich lokal sichern.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 45 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">X8</span>
+          <div class="fbody">
+            <h3>Quick Connect fehlt</h3>
+            <p>Jellyfin kann Anmeldung per Code freigeben, statt das Passwort zu tippen. Vor allem bei mehreren Benutzern angenehm.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 2 Std</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <section data-group>
+      <div class="section-head"><h2>Zugänglichkeit</h2><span class="rule"></span><span class="n" data-count>4</span></div>
+      <div class="findings">
+
+        <article class="finding" data-sev="hoch" data-verified="1">
+          <span class="fid">A1</span>
+          <div class="fbody">
+            <h3>Kein sichtbarer Fokus</h3>
+            <p>Beim Bedienen mit der Tabulatortaste ist nirgends zu sehen, wo man gerade steht. Die Oberfläche wird ohne Maus praktisch unbedienbar.</p>
+            <span class="evidence">Geprüft: <b>0 Treffer</b> für <code>:focus-visible</code> im Stylesheet</span>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 30 Min</span><span class="verified">gemessen</span></div>
+        </article>
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">A2</span>
+          <div class="fbody">
+            <h3>Dialoge halten den Fokus nicht</h3>
+            <p>In Einstellungen, Server- und Playlist-Dialog wandert der Fokus per Tab hinter das Fenster. Es fehlen Fokus-Falle, <code>aria-modal</code> und der Rücksprung zum auslösenden Knopf.</p>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 1,5 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="mittel">
+          <span class="fid">A3</span>
+          <div class="fbody">
+            <h3>Startseite ignoriert „Bewegung reduzieren"</h3>
+            <p>Der Hero wechselt automatisch und zoomt dabei langsam. Wer Systembewegung reduziert hat, sollte das abgeschaltet bekommen — die Abfrage <code>prefers-reduced-motion</code> fehlt komplett.</p>
+          </div>
+          <div class="fmeta"><span class="pill mittel">Mittel</span><span class="effort">≈ 20 Min</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">A4</span>
+          <div class="fbody">
+            <h3>Bilder ohne beschreibenden Text</h3>
+            <p>Cover werden mit leerem <code>alt</code> ausgeliefert. Für Vorlesesoftware ist die Kachel damit stumm, obwohl der Titel bekannt ist.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 20 Min</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <section data-group>
+      <div class="section-head"><h2>Leistung</h2><span class="rule"></span><span class="n" data-count>3</span></div>
+      <div class="findings">
+
+        <article class="finding" data-sev="hoch" data-verified="1">
+          <span class="fid">P1</span>
+          <div class="fbody">
+            <h3>Bibliothek endet hart bei 400 Titeln</h3>
+            <p>Die Abfragen haben ein festes Limit und laden nicht nach. Wer mehr im Regal hat, kommt an den Rest über die Bibliotheksansicht nicht heran — nur über die Suche.</p>
+            <span class="evidence">Gefunden: <b>Limit 400</b> in Bibliothek und Katalog, <b>60</b> in der Suche</span>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 2 Std</span><span class="verified">gemessen</span></div>
+        </article>
+
+        <article class="finding" data-sev="hoch">
+          <span class="fid">P2</span>
+          <div class="fbody">
+            <h3>Hunderte Karten gleichzeitig im Dokument</h3>
+            <p>Alle Karten werden auf einmal erzeugt, jede mit Bild und Hover-Bereich. Das Scrollen wird zäh und der Speicher wächst. Sinnvoll wäre, nur Sichtbares zu zeichnen.</p>
+          </div>
+          <div class="fmeta"><span class="pill hoch">Hoch</span><span class="effort">≈ 4 Std</span></div>
+        </article>
+
+        <article class="finding" data-sev="niedrig">
+          <span class="fid">P3</span>
+          <div class="fbody">
+            <h3>Bildgrößen ignorieren die Bildschirmdichte</h3>
+            <p>Cover werden mit fester Höhe angefordert. Auf hochauflösenden Bildschirmen wirken sie weich, auf kleinen wird unnötig viel geladen.</p>
+          </div>
+          <div class="fmeta"><span class="pill niedrig">Niedrig</span><span class="effort">≈ 30 Min</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <p class="empty" id="empty" hidden>Keine Befunde in dieser Auswahl.</p>
+  </main>
+
+  <div class="legend">
+    <p><b>Gemessen</b> heißt: Ich habe die App gestartet und den Wert nachgezählt oder im Code direkt nachgewiesen — nicht bloß vermutet. Die übrigen Punkte stammen aus dem Lesen des Codes.</p>
+    <p><b>Aufwand</b> ist grob geschätzt und schließt Testen ein. Was unter einer Stunde liegt, zählt oben als „schnell erledigt".</p>
+    <p><b>Nicht enthalten</b>: Alles, was am Server statt am Client hängt — etwa ob dein Jellyfin H.265 umwandeln kann.</p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var sevFilter = 'alle';
+    var onlyVerified = false;
+
+    var items = Array.prototype.slice.call(document.querySelectorAll('.finding'));
+    var groups = Array.prototype.slice.call(document.querySelectorAll('[data-group]'));
+    var counter = document.getElementById('counter');
+    var empty = document.getElementById('empty');
+    var total = items.length;
+
+    function apply() {
+      var shown = 0;
+
+      items.forEach(function (item) {
+        var okSev = sevFilter === 'alle' || item.getAttribute('data-sev') === sevFilter;
+        var okVer = !onlyVerified || item.hasAttribute('data-verified');
+        var visible = okSev && okVer;
+        item.hidden = !visible;
+        if (visible) shown++;
+      });
+
+      groups.forEach(function (group) {
+        var live = group.querySelectorAll('.finding:not([hidden])').length;
+        group.hidden = live === 0;
+        var badge = group.querySelector('[data-count]');
+        if (badge) badge.textContent = live;
+      });
+
+      counter.textContent = shown + ' von ' + total;
+      empty.hidden = shown !== 0;
+    }
+
+    document.querySelectorAll('.chipbtn[data-sev]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        sevFilter = btn.getAttribute('data-sev');
+        document.querySelectorAll('.chipbtn[data-sev]').forEach(function (other) {
+          other.setAttribute('aria-pressed', String(other === btn));
+        });
+        apply();
+      });
+    });
+
+    var verBtn = document.querySelector('.chipbtn[data-only-verified]');
+    verBtn.addEventListener('click', function () {
+      onlyVerified = !onlyVerified;
+      verBtn.setAttribute('aria-pressed', String(onlyVerified));
+      apply();
+    });
+
+    apply();
+  })();
+</script>

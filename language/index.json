@@ -1,0 +1,23 @@
+{
+  "_comment": "Index der verfügbaren Sprachen. Die App liest diese Datei aus dem GitHub-Repo und lädt daraus neue oder aktualisierte Übersetzungen. Wer eine Sprache beisteuert, trägt sie hier ein und erhöht bei Änderungen die version.",
+  "languages": [
+    {
+      "code": "en",
+      "name": "English",
+      "nativeName": "English",
+      "flag": "🇬🇧",
+      "author": "Jellystream Team",
+      "authorUrl": "",
+      "version": 1
+    },
+    {
+      "code": "de",
+      "name": "German",
+      "nativeName": "Deutsch",
+      "flag": "🇩🇪",
+      "author": "Jellystream Team",
+      "authorUrl": "",
+      "version": 1
+    }
+  ]
+}
