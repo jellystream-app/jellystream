@@ -1,0 +1,87 @@
+{
+  "name": "jellystream",
+  "version": "2.2.0",
+  "description": "Jellystream — desktop client for Jellyfin media servers",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "icon": "electron tools/make-icon.js",
+    "dist": "electron-builder --win",
+    "test": "npm run test:syntax && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:i18n && npm run test:smoke",
+    "test:syntax": "node --check main.js && node --check downloads.js && node --check languages.js && node --check i18n.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check settings.js && node --check preload.js",
+    "test:downloads": "electron tools/test-downloads.js",
+    "test:ui": "electron tools/test-ui.js",
+    "test:rows": "electron tools/test-rows.js",
+    "test:i18n": "electron tools/test-i18n.js",
+    "test:smoke": "electron tools/smoke.js"
+  },
+  "homepage": "https://github.com/ukyyyy/jellystream",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ukyyyy/jellystream.git"
+  },
+  "keywords": [
+    "jellyfin",
+    "electron",
+    "streaming",
+    "media"
+  ],
+  "author": "UkY",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.jellystream.app",
+    "productName": "Jellystream",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "downloads.js",
+      "languages.js",
+      "preload.js",
+      "i18n.js",
+      "renderer.js",
+      "offline.js",
+      "player.js",
+      "settings.js",
+      "index.html",
+      "audit.html",
+      "styles.css",
+      "logo.svg",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "language",
+        "to": "language",
+        "filter": ["**/*.json"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Jellystream",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    }
+  }
+}
