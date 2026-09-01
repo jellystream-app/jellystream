@@ -518,6 +518,23 @@
     "player.previousTrack": "Vorheriger",
     "player.closePlayer": "Player schließen",
     "player.muteShort": "Stumm",
-    "player.qualityShort": "Qualität"
+    "player.qualityShort": "Qualität",
+
+    "update.title": "Updates",
+    "update.hint": "Jellystream aktualisiert sich selbst. Ein geladenes Update wird beim nächsten Schließen der App eingespielt.",
+    "update.currentVersion": "Installierte Fassung",
+    "update.status": "Status",
+    "update.checking": "Suche…",
+    "update.current": "Auf dem neuesten Stand",
+    "update.downloading": "Version {version} wird geladen… {percent} %",
+    "update.ready": "Version {version} bereit — wird beim Schließen eingespielt",
+    "update.installNow": "Jetzt neu starten und einspielen",
+    "update.checkNow": "Nach Updates suchen",
+    "update.failed": "Suche fehlgeschlagen — keine Verbindung?",
+    "update.devMode": "Updates laufen nur in der installierten Fassung",
+    "update.idle": "Noch nicht geprüft",
+    "update.readyToast": "Version {version} ist bereit. Sie wird beim Schließen von Jellystream eingespielt.",
+    "update.unsignedNote": "Jellystream ist noch nicht signiert. Windows SmartScreen kann beim Installieren warnen — dann auf „Weitere Informationen\" → „Trotzdem ausführen\" gehen. Der Download stammt aus den GitHub-Releases des Projekts.",
+    "update.releaseNotes": "Änderungen auf GitHub"
   }
 }

@@ -518,6 +518,23 @@
     "player.previousTrack": "Previous",
     "player.closePlayer": "Close player",
     "player.muteShort": "Mute",
-    "player.qualityShort": "Quality"
+    "player.qualityShort": "Quality",
+
+    "update.title": "Updates",
+    "update.hint": "Jellystream installs updates automatically. A downloaded update is applied the next time you close the app.",
+    "update.currentVersion": "Installed version",
+    "update.status": "Status",
+    "update.checking": "Checking…",
+    "update.current": "Up to date",
+    "update.downloading": "Downloading version {version}… {percent} %",
+    "update.ready": "Version {version} ready — will install when you close the app",
+    "update.installNow": "Restart and install now",
+    "update.checkNow": "Check for updates",
+    "update.failed": "Check failed — no connection?",
+    "update.devMode": "Updates only run in the installed version",
+    "update.idle": "Not checked yet",
+    "update.readyToast": "Version {version} is ready. It installs when you close Jellystream.",
+    "update.unsignedNote": "Jellystream is not code-signed yet. Windows SmartScreen may warn on install — choose „More info\" → „Run anyway\". The download comes from the project's own GitHub releases.",
+    "update.releaseNotes": "Release notes on GitHub"
   }
 }

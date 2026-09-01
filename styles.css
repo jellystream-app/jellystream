@@ -2970,3 +2970,59 @@ a.lang-author:hover {
   .settings-panels { padding: 24px 20px 50px; }
   .settings-close { top: 14px; right: 16px; }
 }
+
+/* ============================================================
+   UPDATES
+   ============================================================ */
+
+.update-status {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 0 4px;
+  font-size: 0.87rem;
+  color: var(--muted);
+}
+
+.update-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--muted-2);
+  flex-shrink: 0;
+}
+.update-dot.checking { background: #e5a00d; animation: pulse-dot 1.3s ease-in-out infinite; }
+.update-dot.downloading { background: var(--accent); animation: pulse-dot 1.3s ease-in-out infinite; }
+.update-dot.current { background: #3ddc97; }
+.update-dot.ready { background: #3ddc97; box-shadow: 0 0 0 4px rgba(61, 220, 151, 0.18); }
+.update-dot.error { background: var(--danger); }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.update-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin: 4px 0 12px;
+}
+.update-progress .bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.25s linear;
+}
+
+#update-install { margin: 4px 0 14px; }
+
+.update-note {
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+#update-current { word-break: break-all; }

@@ -789,6 +789,32 @@
             <!-- ============ ÜBER ============ -->
             <div class="settings-panel" data-panel="about">
               <section class="settings-section">
+                <h3 data-i18n="update.title">Updates</h3>
+                <p class="settings-hint" data-i18n="update.hint">Jellystream aktualisiert sich selbst. Ein geladenes Update wird beim nächsten Schließen der App eingespielt.</p>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="update.currentVersion">Installierte Fassung</strong>
+                    <small id="update-current">—</small>
+                  </span>
+                  <button class="outline-btn small" id="update-check" type="button" data-i18n="update.checkNow">Nach Updates suchen</button>
+                </div>
+
+                <div class="update-status" id="update-status">
+                  <span class="update-dot" id="update-dot"></span>
+                  <span id="update-text" aria-live="polite"></span>
+                </div>
+
+                <div class="update-progress hidden" id="update-progress">
+                  <div class="bar" id="update-bar"></div>
+                </div>
+
+                <button class="primary-btn small hidden" id="update-install" type="button" data-i18n="update.installNow">Jetzt neu starten und einspielen</button>
+
+                <p class="settings-hint update-note" data-i18n="update.unsignedNote">Jellystream ist noch nicht signiert. Windows SmartScreen kann beim Installieren warnen — dann auf „Weitere Informationen" → „Trotzdem ausführen" gehen. Der Download stammt aus den GitHub-Releases des Projekts.</p>
+              </section>
+
+              <section class="settings-section">
                 <h3 data-i18n="settings.about">Über</h3>
                 <div class="about-grid">
                   <div><dt data-i18n="settings.application">Anwendung</dt><dd id="about-app">Jellystream</dd></div>
