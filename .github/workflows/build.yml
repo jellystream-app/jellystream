@@ -69,12 +69,31 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
-      # Electron lädt seine Binärdatei per postinstall in einen Cache
-      # außerhalb von node_modules. Wird node_modules aus dem Cache
-      # wiederhergestellt, läuft postinstall nicht — die Binärdatei
-      # fehlt dann und jeder Testaufruf bricht sofort ab.
+      # Electron lädt seine Binärdatei per postinstall und merkt sich
+      # den Namen in node_modules/electron/path.txt. Fehlt diese Datei,
+      # wirft schon require('electron') — jeder Testaufruf bricht dann
+      # nach einer Sekunde ab, ohne die Ursache zu nennen.
+      #
+      # npm ci führt postinstall zwar aus, der Schritt kann aber still
+      # scheitern (Netz, Spiegelserver). Deshalb prüfen und notfalls
+      # gezielt nachholen.
       - name: Electron-Binärdatei sicherstellen
-        run: node node_modules/electron/install.js
+        shell: bash
+        run: |
+          if [ ! -f node_modules/electron/path.txt ]; then
+            echo "path.txt fehlt — Electron wird nachinstalliert"
+            node node_modules/electron/install.js
+          fi
+
+          if [ ! -f node_modules/electron/path.txt ]; then
+            echo "::error::Electron ließ sich nicht installieren"
+            ls -la node_modules/electron/ || true
+            exit 1
+          fi
+
+          echo "path.txt: $(cat node_modules/electron/path.txt)"
+          BIN=$(node -p "require('electron')")
+          ls -la "$BIN" || { echo "::error::Binärdatei fehlt: $BIN"; exit 1; }
 
       # Die Testsuite öffnet echte Electron-Fenster. Auf den
       # Linux-Läufern gibt es keinen Bildschirm, deshalb xvfb.
@@ -98,22 +117,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           BIN=$(node -p "require('electron')")
-          echo "Binärdatei: $BIN"
-          ls -la "$BIN" || { echo "::error::Binärdatei fehlt"; exit 1; }
 
+          # ldd nennt fehlende Systembibliotheken beim Namen — sonst
+          # müsste man sie aus einem Startfehler erraten.
           echo "--- fehlende Bibliotheken (falls welche) ---"
           ldd "$BIN" | grep "not found" || echo "keine"
 
           echo "--- Startversuch ---"
           xvfb-run --auto-servernum "$BIN" --version
-
-      - name: Electron prüfen (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          BIN=$(node -p "require('electron')")
-          echo "Binärdatei: $BIN"
-          "$BIN" --version
 
       # Ein einzelner npm-test-Aufruf verschluckt bei einem Fehlschlag,
       # WELCHER Schritt gescheitert ist. Deshalb nacheinander mit
