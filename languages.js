@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 /* Repo-Adresse fuer den Sprach-Abgleich. */
-const REPO_RAW = 'https://raw.githubusercontent.com/ukyyyy/jellystream/main/language';
+const REPO_RAW = 'https://raw.githubusercontent.com/jellystream-app/jellystream/main/language';
 const INDEX_URL = `${REPO_RAW}/index.json`;
 
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // hoechstens einmal taeglich

@@ -32,7 +32,7 @@ app.whenReady().then(async () => {
 
   const repo = languages.getRepoUrl();
   check('Repo-Adresse gesetzt',
-    repo.includes('ukyyyy/jellystream') && !repo.includes('DEIN-NAME'), repo);
+    repo.includes('jellystream-app/jellystream') && !repo.includes('DEIN-NAME'), repo);
 
   /* --- Erster Abgleich: muss laufen, nicht uebersprungen werden --- */
   const first = await languages.sync();

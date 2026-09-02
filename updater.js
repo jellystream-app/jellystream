@@ -1,7 +1,7 @@
 /* ============================================================
    Automatische Updates (Main-Process)
 
-   Holt neue Fassungen aus den GitHub-Releases von ukyyyy/jellystream.
+   Holt neue Fassungen aus den GitHub-Releases von jellystream-app/jellystream.
    Ablauf: pruefen -> im Hintergrund laden -> beim Beenden einspielen.
    Der Nutzer wird informiert, aber nicht unterbrochen.
 

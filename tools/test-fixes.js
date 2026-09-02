@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
 
   check('Kein neues App-Fenster', after === before, `${before} -> ${after}`);
   check('GitHub im Browser geoeffnet',
-    opened.some((u) => u.includes('github.com/ukyyyy/jellystream')),
+    opened.some((u) => u.includes('github.com/jellystream-app/jellystream')),
     opened.join(', ') || 'nichts geoeffnet');
   check('Ko-fi im Browser geoeffnet',
     opened.some((u) => u.includes('ko-fi.com/jellystream')),
