@@ -3026,3 +3026,108 @@ a.lang-author:hover {
 }
 
 #update-current { word-break: break-all; }
+
+/* ============================================================
+   WIEDERGABE-ART UND FEHLER IM PLAYER
+   ============================================================ */
+
+.vp-method {
+  margin-left: auto;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+/* Nur zeigen, solange die Bedienleiste sichtbar ist */
+.video-ui:not(.idle) .vp-method { opacity: 0.85; }
+.vp-method.transcoding { background: rgba(229, 160, 13, 0.32); }
+.vp-method.direct { background: rgba(61, 220, 151, 0.24); }
+.vp-method:empty { display: none; }
+
+.vp-error {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  max-width: min(560px, 82%);
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: rgba(10, 14, 20, 0.92);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+/* ============================================================
+   PERSONEN UND SAMMLUNGEN
+   ============================================================ */
+
+.cast-card {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease);
+}
+.cast-card:hover { transform: translateY(-3px); }
+.cast-card:hover .cast-photo { border-color: var(--accent); }
+.cast-card:hover .cast-name { color: var(--accent); }
+.cast-photo {
+  border: 2px solid transparent;
+  transition: border-color 0.16s var(--ease);
+}
+.cast-name { transition: color 0.16s var(--ease); }
+
+.person-head {
+  display: flex;
+  gap: 26px;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+.person-photo {
+  width: 168px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  flex-shrink: 0;
+}
+.person-meta { flex: 1; min-width: 260px; }
+.person-meta h2 {
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+.person-bio {
+  color: var(--muted);
+  line-height: 1.65;
+  max-width: 74ch;
+  font-size: 0.94rem;
+}
+
+/* Genre-Chips sind jetzt Knöpfe */
+.genre-chip {
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.genre-chip:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+@media (max-width: 700px) {
+  .person-photo { width: 118px; }
+  .person-meta h2 { font-size: 1.5rem; }
+}

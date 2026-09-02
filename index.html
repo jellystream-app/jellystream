@@ -227,6 +227,7 @@
       <video id="video-el" playsinline></video>
 
       <div id="video-loading" class="video-loading"><div class="spinner"></div></div>
+      <div id="vp-error" class="vp-error hidden" role="alert"></div>
 
       <div id="video-ui" class="video-ui">
         <div class="vp-top">
@@ -237,6 +238,7 @@
             <strong id="vp-title" data-i18n="player.play">Wiedergabe</strong>
             <span id="vp-subtitle"></span>
           </div>
+          <span id="vp-method" class="vp-method"></span>
         </div>
 
         <button id="vp-center-play" class="vp-center-play" type="button" data-i18n-aria="player.play" aria-label="Abspielen">
@@ -964,6 +966,7 @@
 
     <script src="i18n.js"></script>
     <script src="renderer.js"></script>
+    <script src="playback.js"></script>
     <script src="offline.js"></script>
     <script src="player.js"></script>
     <script src="settings.js"></script>
