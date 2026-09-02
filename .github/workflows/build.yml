@@ -91,22 +91,29 @@ jobs:
             sudo apt-get install -y "$pkg" || echo "übersprungen: $pkg"
           done
 
-      # Zeigt, ob Electron wirklich startet. Schlägt das fehl, liegt
-      # es an der Umgebung, nicht am Code — und man sieht es hier,
-      # statt es aus einem Testfehler erraten zu müssen.
+      # Zeigt, ob Electron wirklich startet — und wenn nicht, WARUM.
+      # ldd nennt fehlende Systembibliotheken beim Namen, statt sie
+      # aus einem Testfehler erraten zu lassen.
       - name: Electron prüfen (Linux)
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum node -e "
-            const { execFileSync } = require('child_process');
-            const bin = require('electron');
-            console.log('Binärdatei:', bin);
-            console.log('Version:', execFileSync(bin, ['--version']).toString().trim());
-          "
+          BIN=$(node -p "require('electron')")
+          echo "Binärdatei: $BIN"
+          ls -la "$BIN" || { echo "::error::Binärdatei fehlt"; exit 1; }
+
+          echo "--- fehlende Bibliotheken (falls welche) ---"
+          ldd "$BIN" | grep "not found" || echo "keine"
+
+          echo "--- Startversuch ---"
+          xvfb-run --auto-servernum "$BIN" --version
 
       - name: Electron prüfen (Windows)
         if: runner.os == 'Windows'
-        run: node -e "const {execFileSync}=require('child_process');const bin=require('electron');console.log('Binaerdatei:',bin);console.log('Version:',execFileSync(bin,['--version']).toString().trim());"
+        shell: bash
+        run: |
+          BIN=$(node -p "require('electron')")
+          echo "Binärdatei: $BIN"
+          "$BIN" --version
 
       # Ein einzelner npm-test-Aufruf verschluckt bei einem Fehlschlag,
       # WELCHER Schritt gescheitert ist. Deshalb nacheinander mit
