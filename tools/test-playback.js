@@ -11,6 +11,13 @@ const fs = require('fs');
 const os = require('os');
 const http = require('http');
 
+/* Wartezeiten dehnen sich mit JF_TEST_SLOW — CI-Laeufer brauchen
+   laenger, bis eine Seite steht. Ohne die Variable bleibt alles
+   wie bisher. */
+const SLOW = Number(process.env.JF_TEST_SLOW) || 1;
+const settle = (ms) => new Promise((r) => setTimeout(r, Math.round(ms * SLOW)));
+
+
 const ROOT = path.join(__dirname, '..');
 
 /* ---- Eine winzige, echte Matroska-Datei bauen ----
@@ -83,7 +90,7 @@ app.whenReady().then(async () => {
   });
 
   await win.loadFile(path.join(ROOT, 'index.html'));
-  await new Promise((r) => setTimeout(r, 1400));
+  await settle(1400);
 
   const results = await win.webContents.executeJavaScript(`
     (async () => {

@@ -8,6 +8,13 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
+/* Wartezeiten dehnen sich mit JF_TEST_SLOW — CI-Laeufer brauchen
+   laenger, bis eine Seite steht. Ohne die Variable bleibt alles
+   wie bisher. */
+const SLOW = Number(process.env.JF_TEST_SLOW) || 1;
+const settle = (ms) => new Promise((r) => setTimeout(r, Math.round(ms * SLOW)));
+
+
 const ROOT = path.join(__dirname, '..');
 const results = [];
 
@@ -34,7 +41,7 @@ app.whenReady().then(async () => {
   });
 
   await win.loadFile(path.join(ROOT, 'index.html'));
-  await new Promise((r) => setTimeout(r, 1500));
+  await settle(1500);
 
   const base = await win.webContents.executeJavaScript(`
     (() => {
@@ -168,7 +175,7 @@ app.whenReady().then(async () => {
        der Durchlauf prueft dann die vorherige Groesse. */
     win.setMinimumSize(200, 200);
     win.setContentSize(size.w, size.h);
-    await new Promise((r) => setTimeout(r, 120));
+    await settle(120);
 
     /* Nachfassen, bis die Seite die Groesse auch sieht. getContentSize
        meldet den Zielwert mitunter, bevor der Renderer umgebrochen hat. */
@@ -179,7 +186,7 @@ app.whenReady().then(async () => {
       win.setContentSize(size.w, size.h);
       await new Promise((r) => setTimeout(r, 70));
     }
-    await new Promise((r) => setTimeout(r, 200));
+    await settle(200);
 
     // Nachpruefen, dass die Groesse wirklich angekommen ist
     const actual = await win.webContents.executeJavaScript(
@@ -219,7 +226,7 @@ app.whenReady().then(async () => {
   }
 
   win.setContentSize(1280, 860);
-  await new Promise((r) => setTimeout(r, 300));
+  await settle(300);
 
   /* --- Uebersetzung wirkt weiterhin --- */
   const lang = await win.webContents.executeJavaScript(`

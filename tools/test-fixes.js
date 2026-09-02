@@ -11,6 +11,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+/* Wartezeiten dehnen sich mit JF_TEST_SLOW — CI-Laeufer brauchen
+   laenger, bis eine Seite steht. Ohne die Variable bleibt alles
+   wie bisher. */
+const SLOW = Number(process.env.JF_TEST_SLOW) || 1;
+const settle = (ms) => new Promise((r) => setTimeout(r, Math.round(ms * SLOW)));
+
+
 const ROOT = path.join(__dirname, '..');
 const results = [];
 
@@ -84,7 +91,7 @@ app.whenReady().then(async () => {
   });
 
   await win.loadFile(path.join(ROOT, 'index.html'));
-  await new Promise((r) => setTimeout(r, 1400));
+  await settle(1400);
 
   const before = BrowserWindow.getAllWindows().length;
 
@@ -96,7 +103,7 @@ app.whenReady().then(async () => {
       return true;
     })()
   `);
-  await new Promise((r) => setTimeout(r, 600));
+  await settle(600);
 
   const after = BrowserWindow.getAllWindows().length;
 
@@ -138,7 +145,7 @@ app.whenReady().then(async () => {
       /* Der entscheidende Fall: der Server schickt KEINEN
          CORS-Header. Mit track.src direkt schluege das fehl. */
       await applyTextSubtitle({ Index: 2, Language: 'ger', Codec: 'subrip' });
-      await new Promise((r) => setTimeout(r, 500));
+      await settle(500);
 
       const tracks = vp.video.querySelectorAll('track');
       check('Spur wurde angehaengt', tracks.length === 1, tracks.length + ' Spuren');
@@ -156,7 +163,7 @@ app.whenReady().then(async () => {
 
       /* Umschalten: die alte Spur muss verschwinden */
       await applyTextSubtitle({ Index: 3, Language: 'eng', Codec: 'subrip' });
-      await new Promise((r) => setTimeout(r, 400));
+      await settle(400);
       check('Beim Wechsel bleibt nur eine Spur',
         vp.video.querySelectorAll('track').length === 1);
 
@@ -170,7 +177,7 @@ app.whenReady().then(async () => {
       vpCurrent.mediaSourceId = 'src1';
       window.fetch = (u, o) => realFetch(String(u).replace('/Subtitles/', '/BadSubtitles/'), o);
       await applyTextSubtitle({ Index: 4, Language: 'ger', Codec: 'subrip' });
-      await new Promise((r) => setTimeout(r, 300));
+      await settle(300);
       check('Ungueltige Antwort wird verworfen',
         vp.video.querySelectorAll('track').length === 0);
       window.fetch = realFetch;
@@ -213,7 +220,7 @@ app.whenReady().then(async () => {
 
       // Eine Spur waehlen
       entries[1]?.click();
-      await new Promise((r) => setTimeout(r, 250));
+      await settle(250);
       check('Auswahl setzt den Index', vpCurrent.subtitleIndex === 1,
         String(vpCurrent.subtitleIndex));
 

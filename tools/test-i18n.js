@@ -9,6 +9,13 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+/* Wartezeiten dehnen sich mit JF_TEST_SLOW — CI-Laeufer brauchen
+   laenger, bis eine Seite steht. Ohne die Variable bleibt alles
+   wie bisher. */
+const SLOW = Number(process.env.JF_TEST_SLOW) || 1;
+const settle = (ms) => new Promise((r) => setTimeout(r, Math.round(ms * SLOW)));
+
+
 const ROOT = path.join(__dirname, '..');
 const results = [];
 
@@ -150,7 +157,7 @@ app.whenReady().then(async () => {
   });
 
   await win.loadFile(path.join(ROOT, 'index.html'));
-  await new Promise((r) => setTimeout(r, 1600));
+  await settle(1600);
 
   const domResults = await win.webContents.executeJavaScript(`
     (async () => {
