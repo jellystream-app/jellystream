@@ -183,7 +183,9 @@ app.whenReady().then(async () => {
       nextBtn.click();
       await wait(150);
       prevBtn.click();
-      await wait(200);
+      // 600 statt 200: der Nachschlag der App kommt erst nach 420 ms,
+      // weil requestAnimationFrame in unsichtbaren Fenstern ruht.
+      await wait(600);
       check('Am Anfang ist prev aus', prevBtn.classList.contains('off'),
             'scrollLeft ' + scroll.scrollLeft);
       check('Am Anfang ist next an', !nextBtn.classList.contains('off'));
@@ -213,6 +215,12 @@ app.whenReady().then(async () => {
         else stuck = 0;
         lastLeft = scroll.scrollLeft;
       }
+
+      /* Dem Nachschlag Zeit lassen: die App führt die Pfeil-Zustände
+         über requestAnimationFrame nach, das in unsichtbaren Fenstern
+         ruht — dort greift erst der Zeitgeber nach 420 ms. Ohne dieses
+         Warten prüft der Test, bevor die App fertig ist. */
+      await wait(600);
 
       // Verkettung statt Template-Literal: der gesamte Testcode steckt
       // selbst in einem Literal, eine Interpolation wuerde dort greifen.
