@@ -1,6 +1,6 @@
 {
   "name": "jellystream",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "Jellystream — desktop client for Jellyfin media servers",
   "main": "main.js",
   "scripts": {

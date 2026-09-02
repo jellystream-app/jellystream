@@ -133,13 +133,21 @@ app.whenReady().then(async () => {
       check('MP4 wird direkt angeboten',
             (direct.Container || '').split(',').includes('mp4'), direct.Container);
 
-      // HEVC dagegen fehlt dem Build wirklich — auch mit echter Datei
-      check('HEVC wird nicht als direkt angeboten',
-            !/hevc|h265|hvc1/i.test(direct.VideoCodec || ''), direct.VideoCodec);
+      /* HEVC, AC-3 und DTS stehen bewusst DRIN.
 
-      // AC-3 und DTS fehlen zu Recht
-      check('AC-3 nicht im Tonprofil', !/ac3|ac-3/i.test(direct.AudioCodec || ''), direct.AudioCodec);
-      check('DTS nicht im Tonprofil', !/dts/i.test(direct.AudioCodec || ''), direct.AudioCodec);
+         Chromium dekodiert sie zwar nicht, aber sie auszuschliessen
+         hiess, dass der Server ganze Serien umrechnet — und der
+         Umrechnungsweg ist der unzuverlaessigere. Besser: direkt
+         versuchen, und wenn es scheitert, faengt der Rueckfall im
+         Player das ab. Genau das ging in 2.5.0 verloren. */
+      // Auf Listeneintraege pruefen, nicht per Regex: "ac3" steckt
+      // als Teilkette auch in "eac3" und ergaebe falsche Treffer.
+      const vList = (direct.VideoCodec || '').split(',');
+      const aList = (direct.AudioCodec || '').split(',');
+
+      check('HEVC wird direkt versucht', vList.includes('hevc'), direct.VideoCodec);
+      check('AC-3 wird direkt versucht', aList.includes('ac3'), direct.AudioCodec);
+      check('DTS wird direkt versucht', aList.includes('dts'), direct.AudioCodec);
 
       // Umgekehrt: was drinsteht, muss laufen
       check('H.264 ist im Profil', /h264/.test(direct.VideoCodec));
@@ -157,6 +165,38 @@ app.whenReady().then(async () => {
             'canPlayType: "' + video.canPlayType('application/vnd.apple.mpegurl') + '"');
       check('MPEG-TS ist tatsächlich nicht abspielbar',
             !video.canPlayType('video/mp2t'));
+
+      /* ====== Typische Bibliotheksdateien muessen direkt laufen ======
+         Das ist die Pruefung, die den Fehler aus 2.5.0 gefunden
+         haette: dort fiel MKV+AC-3 durch und ganze Serien wurden
+         umgerechnet, obwohl sie vorher direkt liefen. */
+      const containers = (direct.Container || '').split(',');
+      const vcodecs = (direct.VideoCodec || '').split(',');
+      const acodecs = (direct.AudioCodec || '').split(',');
+
+      const typical = [
+        { n: 'MKV + H.264 + AC-3', c: 'mkv', v: 'h264', a: 'ac3' },
+        { n: 'MKV + H.264 + AAC',  c: 'mkv', v: 'h264', a: 'aac' },
+        { n: 'MKV + H.264 + DTS',  c: 'mkv', v: 'h264', a: 'dts' },
+        { n: 'MKV + HEVC + E-AC-3', c: 'mkv', v: 'hevc', a: 'eac3' },
+        { n: 'MP4 + H.264 + AAC',  c: 'mp4', v: 'h264', a: 'aac' },
+        { n: 'AVI + MPEG-4 + MP3', c: 'avi', v: 'mpeg4', a: 'mp3' }
+      ];
+
+      typical.forEach((f) => {
+        const ok = containers.includes(f.c) && vcodecs.includes(f.v) && acodecs.includes(f.a);
+        const why = [];
+        if (!containers.includes(f.c)) why.push('Container');
+        if (!vcodecs.includes(f.v)) why.push('Video');
+        if (!acodecs.includes(f.a)) why.push('Audio');
+        check('Laeuft direkt: ' + f.n, ok, why.join('+') + ' fehlt im Profil');
+      });
+
+      /* Keine CodecProfile-Bedingung: jede davon ist ein Grund, aus
+         dem der Server umrechnet. Genau daran lag es zuletzt. */
+      check('Keine Bedingungen erzwingen Umrechnen',
+            profile.CodecProfiles.length === 0,
+            profile.CodecProfiles.length + ' Bedingungen');
 
       /* --- Kein unnoetiges Umrechnen bei Mehrkanalton ---
          Die Ausgabe ist Stereo, aber Chromium mischt selbst herunter.
@@ -242,6 +282,16 @@ app.whenReady().then(async () => {
 
       // Fall D: keine Quelle
       check('Ohne Quelle kein Plan', resolveStream({ MediaSources: [] }, item, {}) === null);
+
+      /* --- Der Rueckfall: nach gescheiterter Direktwiedergabe MUSS
+         der Server umrechnen, sonst kaeme dieselbe kaputte Quelle
+         noch einmal zurueck. --- */
+      const forced = buildTranscodeOnlyProfile(0);
+      check('Rueckfall-Profil erlaubt nichts direkt',
+            forced.DirectPlayProfiles.length === 0,
+            forced.DirectPlayProfiles.length + ' Eintraege');
+      check('Rueckfall-Profil kann noch umrechnen',
+            forced.TranscodingProfiles.length > 0);
 
       /* ============ 3. Zeitachse beim Umrechnen ============ */
 
