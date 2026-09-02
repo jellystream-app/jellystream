@@ -1,157 +1,73 @@
-# Jellyfin Electron Client
+<div align="center">
 
-Ein einfacher Electron-Client zum Verbinden mit einem Jellyfin-Server und zum Streamen von:
+# Jellystream
 
-- Filmen
-- Serien
-- Musik/Audio
-- Bibliotheken aus dem Jellyfin-Server
+> *just another jellyfin desktop client...*
 
-## Starten
+[![Release](https://img.shields.io/github/v/release/ukyyyy/jellystream?color=00a4dc&style=flat-square)](https://github.com/ukyyyy/jellystream/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20(soon)-141519?style=flat-square)](https://github.com/ukyyyy/jellystream/releases)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/jellystream)
 
-```bash
-npm install
-npm start
-```
+[English](#english) • [Deutsch](#deutsch)
 
-## Verbindung
+</div>
 
-1. Server-URL eingeben, z. B. `http://localhost:8096`
-2. Jellyfin-Benutzername und Passwort eingeben
-3. Bibliotheken werden automatisch geladen
-4. Ein Film, eine Serie oder ein Album anklicken, um den Player zu öffnen
+---
 
-## Hinweise
+<a name="english"></a>
+## 🇬🇧 English
 
-- Die App verwendet die Jellyfin-API mit dem Zugriffstoken des Benutzers.
-- Für echte Nutzung muss ein laufender Jellyfin-Server erreichbar sein.
-- Der Player öffnet einen eingebetteten Video-/Audio-Stream direkt aus dem Server.
-- Wir sammeln KEINE daten. Es werden keine Informationen über eure server gesammelt oder gespeichert
+**Jellystream** is a lightweight, clean desktop client designed for your self-hosted [Jellyfin](https://jellyfin.org/) media server. No browser tabs, no middleman, no third-party accounts — just connect your server and enjoy your media.
 
-## Release veröffentlichen
+### ✨ Features
+- ⚡ **Lightweight & Fast:** Direct desktop experience without heavy browser clutter.
+- 🎨 **Custom Theme Engine:** Full support for custom CSS overrides (e.g. Disney+ Dark Theme).
+- 🎬 **Player Info Overlay:** Built-in stats for FPS, latency, and transcoding status.
+- 💻 **Cross-Platform:** Available for Windows (x64), Linux support is currently in progress.
 
-Die App aktualisiert sich selbst aus den GitHub-Releases. Damit das
-funktioniert, muss **`latest.yml` im Release liegen** — ohne diese Datei
-findet der Updater nichts, ganz gleich wie viele `.exe` dort liegen.
+### 📥 Download
+Get the latest release from the [Releases Page](https://github.com/ukyyyy/jellystream/releases/latest).
 
-### Mit Token (empfohlen)
+> [!NOTE]
+> **v2.7.2 Fix:** `.mkv` playback issues have been resolved as of version `v2.7.2`.
 
-```bash
-# Einmalig: Token mit "repo"-Rechten erzeugen und setzen
-export GH_TOKEN=ghp_...
+### 🎯 Next Goal: `jellystream.app`
+We are currently raising funds via Ko-fi to acquire and maintain the official **`jellystream.app`** domain! If you like the project, consider supporting development.
 
-npm version minor      # hebt die Version in package.json
-npm test               # muss grün sein
-npm run release        # baut und lädt alles hoch
-```
+[![Support on Ko-fi](https://img.shields.io/badge/Donate-Ko--fi-00a4dc?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/jellystream)
 
-`npm run release` legt das Release an und lädt `.exe`, `.blockmap` und
-`latest.yml` gemeinsam hoch.
+---
 
-### Ohne Token (von Hand)
+<a name="deutsch"></a>
+## 🇩🇪 Deutsch
 
-```bash
-npm run dist
-```
+**Jellystream** ist ein schlanker, performanter Desktop-Client für deinen selbst gehosteten [Jellyfin](https://jellyfin.org/)-Medienserver. Kein Browser-Tab, keine Umwege, keine Drittanbieter-Accounts — einfach Server-URL eingeben, anmelden und streamen.
 
-Danach **alle drei Dateien** aus `dist/` ins GitHub-Release hochladen:
+### ✨ Features
+- ⚡ **Schlank & Schnell:** Fokussiertes Streaming-Erlebnis direkt auf deinem Desktop.
+- 🎨 **Custom CSS Support:** Vollständige Anpassbarkeit über eigenes CSS (z. B. Disney+ Dark-Theme).
+- 🎬 **Player-Overlays:** Live-Informationen zu FPS, Latenz und Transcoding-Status.
+- 💻 **Plattformen:** Verfügbar für Windows (x64), Linux-Version befindet sich in Arbeit.
 
-| Datei | wofür |
-|---|---|
-| `Jellystream-Setup-<version>.exe` | der Installer |
-| `latest.yml` | **Pflicht** — hierüber erkennt der Updater neue Versionen |
-| `Jellystream-Setup-<version>.exe.blockmap` | lädt nur die geänderten Teile |
+### 📥 Download
+Lade die neueste Version auf der [Releases-Seite](https://github.com/ukyyyy/jellystream/releases/latest) herunter.
 
-Der Tag muss zur Version passen (`v2.4.0` zu `"version": "2.4.0"`).
+> [!NOTE]
+> **v2.7.2 Hinweis:** Das `.mkv`-Wiedergabeproblem wurde mit Version `v2.7.2` erfolgreich behoben.
 
-Prüfen, ob alles stimmt:
+### 🎯 Nächstes Ziel: `jellystream.app`
+Wir sammeln aktuell Spenden über Ko-fi, um die offizielle Domain **`jellystream.app`** zu sichern und zu finanzieren! Wenn dir das Projekt gefällt, freuen wir uns über deine Unterstützung.
 
-```bash
-npm run test:updater
-```
+[![Auf Ko-fi unterstützen](https://img.shields.io/badge/Spenden-Ko--fi-00a4dc?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/jellystream)
 
-Der Test vergleicht Dateiname, Größe und Prüfsumme in `latest.yml` mit
-dem gebauten Installer und sieht nach, ob das Release die Datei enthält.
+---
 
-### Wie das Update beim Nutzer abläuft
+<div align="center">
 
-1. Acht Sekunden nach dem Start, danach alle sechs Stunden: Prüfung
-2. Gibt es etwas Neues, lädt die App es im Hintergrund
-3. Ein Hinweis meldet, dass die Fassung bereit ist
-4. Eingespielt wird beim **Schließen** der App — nie mitten im Film
+[![Developed by UkY](https://img.shields.io/badge/Developer-UkY-00a4dc?style=flat-square)](https://github.com/ukyyyy)
+[![AI Assisted](https://img.shields.io/badge/Code-AI%20Assisted-7B61FF?style=flat-square)](https://github.com/ukyyyy/jellystream)
 
-Im Entwicklungslauf (`npm start`) sind Updates abgeschaltet.
+Developed by **UkY** using AI tools for coding & design.  
+*Jellystream is an independent project and not officially affiliated with Jellyfin.*
 
-## Übersetzen
-
-Die App ist quelloffen und soll jede Sprache sprechen können. Eine Übersetzung
-ist eine einzelne JSON-Datei — mehr braucht es nicht.
-
-### Schnellstart
-
-1. In der App: **Einstellungen → Sprache → Sprachordner öffnen**
-2. Die Datei `en.json` aus dem Programmordner dorthin kopieren und nach dem
-   Sprachcode benennen, z. B. `en-gb.json`, `fr.json`, `pt-br.json`
-3. `meta` ausfüllen und die Texte in `strings` übersetzen
-4. In der App **Nach Sprachen suchen** ist nicht nötig — Dateien aus diesem
-   Ordner erscheinen sofort in der Auswahl
-
-Eine Datei im eigenen Sprachordner hat Vorrang vor der mitgelieferten Fassung.
-So lässt sich eine Übersetzung in Ruhe testen, bevor sie eingereicht wird.
-
-### Aufbau einer Sprachdatei
-
-```json
-{
-  "meta": {
-    "code": "en-gb",
-    "name": "English (UK)",
-    "nativeName": "English (UK)",
-    "flag": "🇬🇧",
-    "author": "Dein Name",
-    "authorUrl": "https://github.com/deinname",
-    "version": 1
-  },
-  "strings": {
-    "nav.home": "Home",
-    "server.switched": "Switched to {name}"
-  }
-}
-```
-
-| Feld | Bedeutung |
-|---|---|
-| `code` | Sprachcode, muss zum Dateinamen passen |
-| `name` | Name auf Englisch |
-| `nativeName` | Name in der eigenen Sprache — der wird angezeigt |
-| `flag` | Ein Emoji, erscheint auf der Sprachkarte |
-| `author` | Dein Name, wird in den Einstellungen genannt |
-| `authorUrl` | Optionaler Link (nur `http://` oder `https://`) |
-| `version` | Bei jeder Änderung um 1 erhöhen |
-| `rtl` | Auf `true` setzen bei Arabisch, Hebräisch usw. |
-
-### Was zu beachten ist
-
-- **Platzhalter in `{...}` müssen erhalten bleiben.** Aus
-  `"Switched to {name}"` darf `"Gewechselt zu {name}"` werden, aber nicht
-  `"Gewechselt zu {Name}"` — sonst steht der Platzhalter unersetzt da.
-  Ihre Reihenfolge im Satz ist frei.
-- **Schlüssel nie umbenennen**, nur die Werte übersetzen.
-- **Fehlende Schlüssel sind erlaubt.** Was fehlt, zeigt die App auf Englisch;
-  die Sprachauswahl weist den Fortschritt in Prozent aus.
-- `en.json` ist die Referenz — sie enthält immer alle Schlüssel.
-
-### Einreichen
-
-Pull Request mit der neuen Datei in `language/` und einem Eintrag in
-`language/index.json`. Danach laden alle Nutzer die Sprache automatisch —
-die App gleicht einmal täglich mit dem Repository ab.
-
-### Testen
-
-```bash
-npm run test:i18n
-```
-
-Prüft, ob alle Dateien vollständig sind, die Platzhalter zusammenpassen und
-keine Übersetzung leer ist.
+</div>
