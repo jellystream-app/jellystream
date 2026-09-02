@@ -535,6 +535,19 @@
     "update.idle": "Noch nicht geprüft",
     "update.readyToast": "Version {version} ist bereit. Sie wird beim Schließen von Jellystream eingespielt.",
     "update.unsignedNote": "Jellystream ist noch nicht signiert. Windows SmartScreen kann beim Installieren warnen — dann auf „Weitere Informationen\" → „Trotzdem ausführen\" gehen. Der Download stammt aus den GitHub-Releases des Projekts.",
-    "update.releaseNotes": "Änderungen auf GitHub"
+    "update.releaseNotes": "Änderungen auf GitHub",
+
+    "player.directPlay": "Direkt",
+    "player.directStream": "Umpacken",
+    "player.transcoding": "Umrechnen",
+    "player.transcodeReason": "Server rechnet um: {reason}",
+    "player.retrying": "Direktwiedergabe fehlgeschlagen — versuche Umrechnung…",
+
+    "person.filmography": "Zu sehen in",
+    "person.noItems": "Nichts zu dieser Person gefunden.",
+    "person.asRole": "als {role}",
+    "genre.title": "Genre: {name}",
+    "collection.items": "{count} Titel in dieser Sammlung",
+    "nav.collections": "Sammlungen"
   }
 }

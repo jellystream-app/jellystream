@@ -535,6 +535,19 @@
     "update.idle": "Not checked yet",
     "update.readyToast": "Version {version} is ready. It installs when you close Jellystream.",
     "update.unsignedNote": "Jellystream is not code-signed yet. Windows SmartScreen may warn on install — choose „More info\" → „Run anyway\". The download comes from the project's own GitHub releases.",
-    "update.releaseNotes": "Release notes on GitHub"
+    "update.releaseNotes": "Release notes on GitHub",
+
+    "player.directPlay": "Direct",
+    "player.directStream": "Remuxing",
+    "player.transcoding": "Transcoding",
+    "player.transcodeReason": "Server is converting: {reason}",
+    "player.retrying": "Direct playback failed — retrying with conversion…",
+
+    "person.filmography": "Appears in",
+    "person.noItems": "Nothing found for this person.",
+    "person.asRole": "as {role}",
+    "genre.title": "Genre: {name}",
+    "collection.items": "{count} titles in this collection",
+    "nav.collections": "Collections"
   }
 }

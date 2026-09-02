@@ -42,7 +42,9 @@ const vp = {
   subsMenu: $('vp-subs-menu'),
   pip: $('vp-pip'),
   fullscreen: $('vp-fullscreen'),
-  close: $('vp-close')
+  close: $('vp-close'),
+  playMethod: $('vp-method'),
+  error: $('vp-error')
 };
 
 let vpIdleTimer = null;
@@ -61,8 +63,61 @@ const vpCurrent = {
   transcoding: false,
   chapters: [],
   maxBitrate: 0, // 0 = Originalqualität
-  local: false   // true, wenn aus einer heruntergeladenen Datei gespielt wird
+  local: false,  // true, wenn aus einer heruntergeladenen Datei gespielt wird
+
+  /* Aushandlung mit dem Server */
+  playMethod: null,        // DirectPlay | DirectStream | Transcode
+  playSessionId: null,     // fuer Fortschritt und Abbruch des Transcodes
+  transcodeReason: '',     // warum umgerechnet wird
+  serverSeekOffset: 0      // beim Umrechnen liegt der Start schon im Stream
 };
+
+/* Laeuft ein Ladevorgang noch, wenn schon der naechste startet?
+   Dann darf die alte Antwort nichts mehr ueberschreiben. */
+let vpLoadToken = 0;
+
+/* ---------------- Zeitachse ----------------
+   Beim Umrechnen liefert der Server den Film ab der gewuenschten
+   Stelle, das <video> zaehlt aber wieder bei 0. Ohne Korrektur
+   zeigt die Leiste die falsche Position, Kapitel springen daneben
+   und ein Sprung landet an der falschen Stelle.
+
+   Diese drei Funktionen rechnen ueberall in Film-Zeit statt in
+   Element-Zeit — der Rest des Players muss davon nichts wissen. */
+
+function mediaPosition() {
+  return (vp.video.currentTime || 0) + (vpCurrent.serverSeekOffset || 0);
+}
+
+function mediaDuration() {
+  // Beim Umrechnen kennt das Element nur den Rest — die volle Laenge
+  // steht in den Metadaten des Titels.
+  const full = ticksToSeconds(vpCurrent.item?.RunTimeTicks || 0);
+  if (vpCurrent.serverSeekOffset > 0 && full > 0) return full;
+  const own = vp.video.duration;
+  return Number.isFinite(own) && own > 0 ? own : full;
+}
+
+/** Springt an eine Stelle im Film — auch ueber die Grenze des Streams. */
+function seekTo(seconds) {
+  const target = Math.max(0, seconds);
+  const offset = vpCurrent.serverSeekOffset || 0;
+
+  if (offset > 0) {
+    const withinStream = target - offset;
+    const len = vp.video.duration;
+
+    /* Liegt das Ziel ausserhalb des laufenden Streams, muss der
+       Server neu ansetzen — sonst passiert schlicht nichts. */
+    if (withinStream < 0 || (Number.isFinite(len) && withinStream > len)) {
+      return loadVideoSource(target);
+    }
+    vp.video.currentTime = withinStream;
+    return;
+  }
+
+  vp.video.currentTime = target;
+}
 
 /* X1: Qualitätsstufen fürs Streaming */
 const QUALITIES = [
@@ -100,14 +155,25 @@ async function reportPlayback(path, body) {
   }
 }
 
-function startReporting(kind, item, { mediaSourceId, isTranscoding = false } = {}) {
+/* Beim Umrechnen faengt der Stream bei 0 an, obwohl er inhaltlich
+   spaeter beginnt. Ohne diesen Versatz meldet die App eine falsche
+   Position und der Fortsetzen-Punkt springt zurueck. */
+function reportedPosition(kind, media) {
+  const offset = kind === 'video' ? (vpCurrent.serverSeekOffset || 0) : 0;
+  return Math.max(0, (media.currentTime || 0) + offset);
+}
+
+function startReporting(kind, item, { mediaSourceId, isTranscoding = false, playSessionId = null } = {}) {
   stopReporting(kind);
 
   const session = {
-    playSessionId: newPlaySessionId(),
+    // Die Kennung des Servers verwenden, wenn er eine geliefert hat —
+    // sonst kann er Fortschritt und Transcode nicht zuordnen.
+    playSessionId: playSessionId || newPlaySessionId(),
     itemId: item.Id,
     mediaSourceId: mediaSourceId || item.Id,
     isTranscoding,
+    kind,
     timer: null
   };
   reporting[kind] = session;
@@ -137,7 +203,7 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false } = {
       ItemId: session.itemId,
       MediaSourceId: session.mediaSourceId,
       PlaySessionId: session.playSessionId,
-      PositionTicks: Math.round(media.currentTime * TICKS_PER_SECOND),
+      PositionTicks: Math.round(reportedPosition(kind, media) * TICKS_PER_SECOND),
       IsPaused: media.paused,
       PlayMethod: session.isTranscoding ? 'Transcode' : 'DirectStream',
       CanSeek: true
@@ -154,7 +220,7 @@ function stopReporting(kind, positionSeconds = null) {
   reporting[kind] = null;
 
   const media = kind === 'video' ? vp.video : mp.audio;
-  const position = positionSeconds != null ? positionSeconds : media.currentTime || 0;
+  const position = positionSeconds != null ? positionSeconds : reportedPosition(kind, media);
 
   // Das hier beendet serverseitig auch den Transcode-Job
   reportPlayback('/Stopped', {
@@ -165,10 +231,47 @@ function stopReporting(kind, positionSeconds = null) {
   });
 }
 
-// Beim Schließen des Fensters offene Sessions noch abmelden
-window.addEventListener('pagehide', () => {
-  ['video', 'audio'].forEach((kind) => stopReporting(kind));
-});
+/* Beim Schliessen des Fensters die Position noch sichern.
+   `pagehide` allein reichte nicht: der Browser bricht laufende
+   fetch-Aufrufe beim Entladen ab, die Meldung ging also oft
+   verloren. sendBeacon ist genau dafuer gemacht. */
+function flushPlaybackState() {
+  ['video', 'audio'].forEach((kind) => {
+    const session = reporting[kind];
+    if (!session) return;
+
+    const media = kind === 'video' ? vp.video : mp.audio;
+    const body = JSON.stringify({
+      ItemId: session.itemId,
+      MediaSourceId: session.mediaSourceId,
+      PlaySessionId: session.playSessionId,
+      PositionTicks: Math.round(reportedPosition(kind, media) * TICKS_PER_SECOND)
+    });
+
+    let sent = false;
+    try {
+      // sendBeacon ueberlebt das Entladen der Seite
+      const blob = new Blob([body], { type: 'application/json' });
+      sent = navigator.sendBeacon(
+        `${state.serverUrl}/Sessions/Playing/Stopped?api_key=${encodeURIComponent(state.token)}`,
+        blob
+      );
+    } catch (error) {
+      sent = false;
+    }
+
+    // Kein Beacon moeglich? Dann wenigstens den normalen Weg versuchen
+    if (!sent) stopReporting(kind);
+    else {
+      clearInterval(session.timer);
+      clearInterval(session.pingTimer);
+      reporting[kind] = null;
+    }
+  });
+}
+
+window.addEventListener('pagehide', flushPlaybackState);
+window.addEventListener('beforeunload', flushPlaybackState);
 
 function toggleIcons(button, playing) {
   button.querySelector('.ic-play')?.classList.toggle('hidden', playing);
@@ -201,6 +304,8 @@ async function playVideo(item, siblings = [], options = {}) {
   vp.root.classList.remove('hidden');
   vp.loading.classList.remove('hidden');
   resetIdleTimer();
+
+  vp.error.classList.add('hidden');
 
   // Spuren ermitteln — MediaSources kennt Ton- und Untertitelspuren
   let source = null;
@@ -303,69 +408,116 @@ function isTextSubtitle(stream) {
   return !['pgs', 'dvdsub', 'vobsub', 'dvbsub'].some((c) => codec.includes(c));
 }
 
-function loadVideoSource(startAt = 0) {
+/**
+ * Laedt die Quelle — und fragt dafuer zuerst den Server, WIE.
+ *
+ * Frueher entschied der Client selbst und schickte alles als
+ * Direktstream los. Das scheiterte still bei MKV, HEVC, AC-3 und
+ * DTS, weil Chromium die nicht kann. Jetzt bekommt Jellyfin ein
+ * ehrliches Geraeteprofil und waehlt selbst zwischen unveraendert
+ * ausliefern, umpacken und umrechnen.
+ */
+async function loadVideoSource(startAt = 0) {
   const item = vpCurrent.item;
   if (!item) return;
 
-  const selectedSub = vpCurrent.subtitleStreams.find((s) => s.Index === vpCurrent.subtitleIndex);
-  const needsBurnIn = selectedSub && !isTextSubtitle(selectedSub);
+  const token = ++vpLoadToken;
 
-  // Eine andere als die Standard-Tonspur kann der Direktstream nicht wählen
-  const defaultAudioIndex =
-    vpCurrent.audioStreams.find((s) => s.IsDefault)?.Index ?? vpCurrent.audioStreams[0]?.Index ?? null;
-  const needsAudioSwitch =
-    vpCurrent.audioIndex != null && defaultAudioIndex != null && vpCurrent.audioIndex !== defaultAudioIndex;
-
-  // X1: Eine begrenzte Bitrate erzwingt ebenfalls den Transcoding-Weg
-  const needsBitrateCap = vpCurrent.maxBitrate > 0;
-
-  vpCurrent.transcoding = Boolean(needsBurnIn || needsAudioSwitch || needsBitrateCap);
-
-  let url;
-  if (vpCurrent.transcoding) {
-    // Transcoding-Pfad: Server mischt Ton-/Untertitelspur ins Bild
-    const params = new URLSearchParams({
-      api_key: state.token,
-      MediaSourceId: vpCurrent.mediaSourceId,
-      VideoCodec: 'h264',
-      AudioCodec: 'aac',
-      TranscodingContainer: 'ts',
-      TranscodingProtocol: 'hls',
-      DeviceId: getDeviceId()
-    });
-    if (vpCurrent.audioIndex != null) params.set('AudioStreamIndex', vpCurrent.audioIndex);
-    if (needsBitrateCap) params.set('VideoBitrate', String(vpCurrent.maxBitrate));
-    if (needsBurnIn) {
-      params.set('SubtitleStreamIndex', vpCurrent.subtitleIndex);
-      params.set('SubtitleMethod', 'Encode');
-    }
-    url = `${state.serverUrl}/Videos/${item.Id}/master.m3u8?${params}`;
-  } else {
-    url = `${state.serverUrl}/Videos/${item.Id}/stream?static=true&api_key=${encodeURIComponent(state.token)}`;
-  }
-
-  // Vorherige Session abmelden, bevor eine neue startet
+  // Vorherige Session abmelden, sonst haeufen sich Transcodes an
   stopReporting('video');
+  await stopTranscoding(vpCurrent.playSessionId);
+  vpCurrent.playSessionId = null;
 
   vp.loading.classList.remove('hidden');
-  vp.video.src = url;
+  vp.error.classList.add('hidden');
+
+  const selectedSub = vpCurrent.subtitleStreams.find((s) => s.Index === vpCurrent.subtitleIndex);
+  const burnIn = selectedSub && !isTextSubtitle(selectedSub);
+
+  let plan = null;
+  try {
+    const info = await fetchPlaybackInfo(item, {
+      audioIndex: vpCurrent.audioIndex,
+      // Nur Bild-Untertitel muss der Server einbrennen; Text holen
+      // wir als eigene Spur, das spart ihm die Rechenarbeit.
+      subtitleIndex: burnIn ? vpCurrent.subtitleIndex : null,
+      maxBitrate: vpCurrent.maxBitrate,
+      startPositionTicks: Math.round(startAt * TICKS_PER_SECOND),
+      mediaSourceId: vpCurrent.mediaSourceId
+    });
+
+    plan = resolveStream(info, item, {
+      audioIndex: vpCurrent.audioIndex,
+      maxBitrate: vpCurrent.maxBitrate
+    });
+  } catch (error) {
+    console.warn('PlaybackInfo failed:', error.message);
+  }
+
+  // Zwischenzeitlich etwas anderes gestartet? Dann diesen Lauf verwerfen.
+  if (token !== vpLoadToken) return;
+
+  if (!plan) {
+    vp.loading.classList.add('hidden');
+    showPlayerError(t('player.failed'));
+    return;
+  }
+
+  vpCurrent.transcoding = plan.method === 'Transcode';
+  vpCurrent.playMethod = plan.method;
+  vpCurrent.playSessionId = plan.playSessionId;
+  vpCurrent.mediaSourceId = plan.source?.Id || vpCurrent.mediaSourceId;
+  vpCurrent.transcodeReason = transcodeReason(plan.source);
+
+  updatePlaybackBadge();
+
+  vp.video.src = plan.url;
 
   startReporting('video', item, {
     mediaSourceId: vpCurrent.mediaSourceId,
-    isTranscoding: vpCurrent.transcoding
+    isTranscoding: vpCurrent.transcoding,
+    playSessionId: plan.playSessionId
   });
 
-  // Text-Untertitel als <track> anhängen (kein Transcoding nötig)
+  // Textspur selbst anhaengen — nur Bildspuren brennt der Server ein
   applyTextSubtitle(selectedSub && isTextSubtitle(selectedSub) ? selectedSub : null);
 
-  if (startAt > 0) {
+  /* Beim Umrechnen beginnt der Stream bereits an der gewuenschten
+     Stelle — ein zusaetzlicher Sprung wuerde doppelt springen. */
+  if (startAt > 0 && !plan.seekHandledByServer) {
     vp.video.addEventListener('loadedmetadata', function seekOnce() {
       vp.video.removeEventListener('loadedmetadata', seekOnce);
       vp.video.currentTime = startAt;
     });
   }
 
+  if (plan.seekHandledByServer) vpCurrent.serverSeekOffset = startAt;
+  else vpCurrent.serverSeekOffset = 0;
+
   vp.video.play().catch((error) => console.warn('Autoplay blockiert:', error));
+}
+
+/* Zeigt an, wie gerade abgespielt wird — hilft beim Einschaetzen,
+   warum der Server ausgelastet ist. */
+function updatePlaybackBadge() {
+  if (!vp.playMethod) return;
+
+  const labels = {
+    DirectPlay: t('player.directPlay'),
+    DirectStream: t('player.directStream'),
+    Transcode: t('player.transcoding')
+  };
+
+  vp.playMethod.textContent = labels[vpCurrent.playMethod] || '';
+  vp.playMethod.className = `vp-method ${vpCurrent.transcoding ? 'transcoding' : 'direct'}`;
+  vp.playMethod.title = vpCurrent.transcodeReason
+    ? t('player.transcodeReason', { reason: vpCurrent.transcodeReason })
+    : '';
+}
+
+function showPlayerError(message) {
+  vp.error.textContent = message;
+  vp.error.classList.remove('hidden');
 }
 
 function applyTextSubtitle(stream) {
@@ -431,7 +583,7 @@ function buildTrackMenus() {
       vpCurrent.audioIndex = stream.Index;
       vp.audioMenu.classList.add('hidden');
       buildTrackMenus();
-      loadVideoSource(vp.video.currentTime);
+      loadVideoSource(mediaPosition());
     });
     vp.audioMenu.appendChild(btn);
   });
@@ -452,7 +604,7 @@ function buildTrackMenus() {
     vpCurrent.subtitleIndex = null;
     buildTrackMenus();
     // Nur neu laden, wenn eingebrannt war — sonst reicht das Abschalten der Spur
-    if (wasTranscoding) loadVideoSource(vp.video.currentTime);
+    if (wasTranscoding) loadVideoSource(mediaPosition());
     else applyTextSubtitle(null);
   });
   vp.subsMenu.appendChild(offBtn);
@@ -472,7 +624,7 @@ function buildTrackMenus() {
       vpCurrent.subtitleIndex = stream.Index;
       buildTrackMenus();
       // Bild-Untertitel und der Weg zurück brauchen einen neuen Stream
-      if (burned || wasTranscoding) loadVideoSource(vp.video.currentTime);
+      if (burned || wasTranscoding) loadVideoSource(mediaPosition());
       else applyTextSubtitle(stream);
     });
     vp.subsMenu.appendChild(btn);
@@ -494,7 +646,7 @@ function buildQualityMenu() {
       vpCurrent.maxBitrate = quality.bitrate;
       vp.quality.textContent = quality.bitrate ? quality.label.split(' · ')[0] : t('player.qualityAuto');
       buildQualityMenu();
-      loadVideoSource(vp.video.currentTime);
+      loadVideoSource(mediaPosition());
     });
     vp.qualityMenu.appendChild(btn);
   });
@@ -517,7 +669,7 @@ function buildChapterUi() {
     btn.type = 'button';
     btn.innerHTML = `${CHECK_SVG}<span class="label">${escapeHtml(name)}</span><span class="tag">${formatTime(start)}</span>`;
     btn.addEventListener('click', () => {
-      vp.video.currentTime = start;
+      seekTo(start);
       vp.chaptersMenu.classList.add('hidden');
     });
     vp.chaptersMenu.appendChild(btn);
@@ -525,20 +677,21 @@ function buildChapterUi() {
 
   // Marken erst zeichnen, wenn die Länge bekannt ist
   const drawMarks = () => {
-    if (!vp.video.duration) return;
+    const total = mediaDuration();
+    if (!total) return;
     vp.chapterMarks.innerHTML = chapters
       .filter((c) => ticksToSeconds(c.StartPositionTicks) > 0)
       .map((c) => {
-        const pct = (ticksToSeconds(c.StartPositionTicks) / vp.video.duration) * 100;
+        const pct = (ticksToSeconds(c.StartPositionTicks) / total) * 100;
         return `<span class="chapter-mark" style="left:${pct}%"></span>`;
       }).join('');
   };
-  if (vp.video.duration) drawMarks();
+  if (mediaDuration()) drawMarks();
   else vp.video.addEventListener('loadedmetadata', drawMarks, { once: true });
 }
 
 function currentChapterIndex() {
-  const now = vp.video.currentTime;
+  const now = mediaPosition();
   let index = -1;
   vpCurrent.chapters.forEach((chapter, i) => {
     if (ticksToSeconds(chapter.StartPositionTicks) <= now + 0.4) index = i;
@@ -551,7 +704,7 @@ function jumpChapter(direction) {
   if (chapters.length < 2) return;
   const target = currentChapterIndex() + direction;
   if (target < 0 || target >= chapters.length) return;
-  vp.video.currentTime = ticksToSeconds(chapters[target].StartPositionTicks);
+  seekTo(ticksToSeconds(chapters[target].StartPositionTicks));
 }
 
 // Name bewusst spezifisch: "toggleMenu" gehört bereits settings.js
@@ -569,6 +722,17 @@ vp.chapters.addEventListener('click', (event) => { event.stopPropagation(); togg
 
 function closeVideo() {
   stopReporting('video');
+
+  // Laufenden Transcode beim Server abbestellen, sonst rechnet er weiter
+  if (vpCurrent.playSessionId) {
+    stopTranscoding(vpCurrent.playSessionId);
+    vpCurrent.playSessionId = null;
+  }
+  vpCurrent.serverSeekOffset = 0;
+  vpCurrent.playMethod = null;
+  vpLoadToken += 1; // laufende Aushandlung verwerfen
+  vp.error.classList.add('hidden');
+
   vp.video.pause();
   vp.video.querySelectorAll('track').forEach((track) => track.remove());
   vp.video.removeAttribute('src');
@@ -637,20 +801,24 @@ vp.video.addEventListener('playing', () => vp.loading.classList.add('hidden'));
 vp.video.addEventListener('canplay', () => vp.loading.classList.add('hidden'));
 
 vp.video.addEventListener('loadedmetadata', () => {
-  vp.duration.textContent = formatTime(vp.video.duration);
+  vp.duration.textContent = formatTime(mediaDuration());
 });
 
 vp.video.addEventListener('timeupdate', () => {
   if (vpScrubbing) return;
-  const { currentTime, duration } = vp.video;
-  vp.current.textContent = formatTime(currentTime);
-  if (duration) vp.progress.style.width = `${(currentTime / duration) * 100}%`;
+  const position = mediaPosition();
+  const total = mediaDuration();
+  vp.current.textContent = formatTime(position);
+  if (total) vp.progress.style.width = `${(position / total) * 100}%`;
 });
 
 vp.video.addEventListener('progress', () => {
-  const { buffered, duration } = vp.video;
-  if (buffered.length && duration) {
-    vp.buffered.style.width = `${(buffered.end(buffered.length - 1) / duration) * 100}%`;
+  const { buffered } = vp.video;
+  const total = mediaDuration();
+  if (buffered.length && total) {
+    // Puffer liegt hinter dem Versatz — sonst zeigt der Balken bei 0 an
+    const end = buffered.end(buffered.length - 1) + (vpCurrent.serverSeekOffset || 0);
+    vp.buffered.style.width = `${Math.min(100, (end / total) * 100)}%`;
   }
 });
 
@@ -696,7 +864,7 @@ vp.nextupCancel.addEventListener('click', () => {
 });
 
 vp.video.addEventListener('ended', () => {
-  stopReporting('video', vp.video.duration || null);
+  stopReporting('video', mediaDuration() || null);
 
   // Auf Wunsch den Download nach dem Ansehen wegräumen
   if (prefs.dlDeleteWatched && vpCurrent.item && typeof offlineEntry === 'function') {
@@ -719,15 +887,42 @@ vp.video.addEventListener('ended', () => {
   }
 });
 
-vp.video.addEventListener('error', () => {
+/* Scheitert die Wiedergabe trotz Aushandlung, liegt es meist daran,
+   dass der Server die Datei fuer direkt abspielbar hielt. Dann einmal
+   Umrechnen erzwingen, statt den Nutzer vor einem schwarzen Bild
+   sitzen zu lassen. */
+let vpFallbackTried = false;
+
+vp.video.addEventListener('error', async () => {
   vp.loading.classList.add('hidden');
-  vp.subtitle.textContent = t('player.failed');
+
+  if (!vpCurrent.item || vpCurrent.local) {
+    return showPlayerError(t('player.failed'));
+  }
+
+  if (!vpFallbackTried && !vpCurrent.transcoding) {
+    vpFallbackTried = true;
+    console.warn('Direktwiedergabe fehlgeschlagen — erzwinge Umrechnung');
+    showPlayerError(t('player.retrying'));
+
+    // Bitrate begrenzen erzwingt beim Server den Transcoding-Weg
+    const previous = vpCurrent.maxBitrate;
+    vpCurrent.maxBitrate = previous || 20000000;
+    await loadVideoSource(mediaPosition());
+    vpCurrent.maxBitrate = previous;
+    return;
+  }
+
+  showPlayerError(t('player.failed'));
 });
+
+// Bei jedem neuen Titel den Rueckfall wieder erlauben
+vp.video.addEventListener('loadstart', () => { vpFallbackTried = false; });
 
 const seekStep = () => prefs.seekStep || 10;
 
-vp.back10.addEventListener('click', () => { vp.video.currentTime -= seekStep(); });
-vp.fwd10.addEventListener('click', () => { vp.video.currentTime += seekStep(); });
+vp.back10.addEventListener('click', () => seekTo(mediaPosition() - seekStep()));
+vp.fwd10.addEventListener('click', () => seekTo(mediaPosition() + seekStep()));
 vp.close.addEventListener('click', closeVideo);
 
 /* --- Scrubbing --- */
@@ -735,8 +930,9 @@ vp.close.addEventListener('click', closeVideo);
 function seekFromEvent(event) {
   const rect = vp.scrub.getBoundingClientRect();
   const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-  if (vp.video.duration) {
-    vp.video.currentTime = ratio * vp.video.duration;
+  const total = mediaDuration();
+  if (total) {
+    seekTo(ratio * total);
     vp.progress.style.width = `${ratio * 100}%`;
   }
 }
@@ -749,7 +945,7 @@ vp.scrub.addEventListener('mousedown', (event) => {
 vp.scrub.addEventListener('mousemove', (event) => {
   const rect = vp.scrub.getBoundingClientRect();
   const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-  vp.hoverTime.textContent = formatTime(ratio * (vp.video.duration || 0));
+  vp.hoverTime.textContent = formatTime(ratio * (mediaDuration() || 0));
   vp.hoverTime.style.left = `${ratio * 100}%`;
   if (vpScrubbing) seekFromEvent(event);
 });
@@ -888,8 +1084,8 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
         togglePlayVideo();
         break;
-      case 'ArrowLeft':  vp.video.currentTime -= seekStep(); break;
-      case 'ArrowRight': vp.video.currentTime += seekStep(); break;
+      case 'ArrowLeft':  seekTo(mediaPosition() - seekStep()); break;
+      case 'ArrowRight': seekTo(mediaPosition() + seekStep()); break;
       case 'ArrowUp':
         event.preventDefault();
         vp.video.volume = Math.min(vp.video.volume + 0.1, 1);
@@ -902,8 +1098,8 @@ document.addEventListener('keydown', (event) => {
         vp.volume.value = vp.video.volume;
         updateMuteIcon();
         break;
-      case 'j': vp.video.currentTime -= 10; break;
-      case 'l': vp.video.currentTime += 10; break;
+      case 'j': seekTo(mediaPosition() - 10); break;
+      case 'l': seekTo(mediaPosition() + 10); break;
       case 'f': toggleFullscreen(); break;
       case 'm':
         vp.video.muted = !vp.video.muted;

@@ -1213,13 +1213,13 @@ function restartCatalog() {
   loadCatalogPage();
 }
 
-async function openCatalog({ title, types, parentId = null, shape = 'wide', filter = '' }) {
+async function openCatalog({ title, types, parentId = null, shape = 'wide', filter = '', genre = '' }) {
   setTopGap(true);
   newToken('catalog');
 
   Object.assign(catalog, {
     title, types, parentId, shape,
-    sort: 'SortName-Ascending', filter, genre: '',
+    sort: 'SortName-Ascending', filter, genre,
     items: [], total: 0, loading: false, done: false
   });
 
@@ -1256,7 +1256,7 @@ function showCatalog(kind) {
   const isMovies = kind === 'movies';
   return openCatalog({
     title: isMovies ? t('nav.movies') : t('nav.series'),
-    types: isMovies ? 'Movie' : 'Series'
+    types: isMovies ? 'Movie,BoxSet' : 'Series'
   });
 }
 
@@ -1396,7 +1396,9 @@ async function showDetail(base) {
                   data-dl-item="${escapeHtml(item.Id)}">${ICON_DOWNLOAD} ${escapeHtml(t('detail.download'))}</button>` : ''}
             </div>
 
-            ${item.Genres?.length ? `<div class="detail-tags">${item.Genres.map((g) => `<span class="genre-chip">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
+            ${item.Genres?.length ? `<div class="detail-tags">${item.Genres.map((g) =>
+              `<button type="button" class="genre-chip" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`
+            ).join('')}</div>` : ''}
           </div>
         </div>
       </section>
@@ -1462,6 +1464,11 @@ async function showDetail(base) {
 
     $('detail-download')?.addEventListener('click', () => openDownloadModal(item));
     if (typeof updateDownloadButtons === 'function') updateDownloadButtons();
+
+    // Genre-Chips führen in den gefilterten Katalog
+    el.viewRoot.querySelectorAll('.genre-chip[data-genre]').forEach((chip) => {
+      chip.addEventListener('click', () => navigate(() => showGenre(chip.dataset.genre)));
+    });
 
     const watchedBtn = $('detail-watched');
     watchedBtn.addEventListener('click', async () => {
@@ -1620,16 +1627,129 @@ function renderCastPanel(item) {
       : '';
     const role = person.Role || (person.Type === 'Director' ? t('detail.director') : person.Type === 'Writer' ? t('detail.writer') : '');
     return `
-      <div class="cast-card">
+      <button class="cast-card" type="button" data-person="${escapeHtml(person.Id || '')}"
+              data-person-name="${escapeHtml(person.Name || '')}">
         ${photo
           ? `<img class="cast-photo" src="${photo}" alt="" loading="lazy">`
           : `<div class="cast-photo placeholder">${escapeHtml((person.Name || '?').charAt(0))}</div>`}
         <div class="cast-name">${escapeHtml(person.Name || '')}</div>
         ${role ? `<div class="cast-role">${escapeHtml(role)}</div>` : ''}
-      </div>`;
+      </button>`;
   }).join('');
 
   $('tab-content').innerHTML = `<div class="tab-panel"><div class="cast-row">${cards}</div></div>`;
+
+  // Klick auf eine Person zeigt, worin sie sonst noch mitspielt
+  $('tab-content').querySelectorAll('.cast-card[data-person]').forEach((card) => {
+    if (!card.dataset.person) return;
+    card.addEventListener('click', () => {
+      navigate(() => showPerson({ Id: card.dataset.person, Name: card.dataset.personName }));
+    });
+  });
+}
+
+/* ---------------- Personen ---------------- */
+
+async function showPerson(person) {
+  setActiveNav(null);
+  setTopGap(true);
+  showLoader();
+
+  try {
+    const [detail, items] = await Promise.all([
+      api(`/Users/${state.userId}/Items/${person.Id}`).catch(() => person),
+      api(itemsUrl({
+        PersonIds: person.Id,
+        Recursive: 'true',
+        IncludeItemTypes: 'Movie,Series',
+        SortBy: 'PremiereDate,SortName',
+        SortOrder: 'Descending',
+        Fields: 'ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated',
+        Limit: '60'
+      })).catch(() => null)
+    ]);
+
+    const photo = detail?.ImageTags?.Primary
+      ? `${state.serverUrl}/Items/${detail.Id}/Images/Primary?maxHeight=400&quality=90&tag=${detail.ImageTags.Primary}`
+      : '';
+
+    el.viewRoot.innerHTML = `
+      <div class="person-head">
+        ${photo ? `<img class="person-photo" src="${photo}" alt="">` : ''}
+        <div class="person-meta">
+          <h2>${escapeHtml(detail?.Name || person.Name || '')}</h2>
+          ${detail?.Overview ? `<p class="person-bio">${escapeHtml(detail.Overview)}</p>` : ''}
+        </div>
+      </div>
+      <div id="person-items"></div>`;
+
+    const host = $('person-items');
+    const list = items?.Items || [];
+
+    if (!list.length) {
+      host.innerHTML = `<div class="empty-state">${escapeHtml(t('person.noItems'))}</div>`;
+    } else {
+      const row = document.createElement('div');
+      row.className = 'grid';
+      list.forEach((entry) => row.appendChild(buildCard(entry)));
+      host.innerHTML = `<h3 class="section-title">${escapeHtml(t('person.filmography'))}</h3>`;
+      host.appendChild(row);
+    }
+
+    setStatus(detail?.Name || person.Name || '');
+  } catch (error) {
+    console.error(error);
+    showError(t('common.loadFailed', { error: error.message }), () => navigate(state.view, { push: false }));
+  }
+}
+
+/* ---------------- Sammlungen ---------------- */
+
+/* Eine Sammlung ("Harry Potter") gruppiert mehrere Titel. Ohne diese
+   Ansicht landete ein Klick darauf in der Detailseite und zeigte
+   nichts Sinnvolles. */
+async function showCollection(collection) {
+  setActiveNav(null);
+  setTopGap(true);
+  showLoader();
+
+  try {
+    const data = await api(itemsUrl({
+      ParentId: collection.Id,
+      SortBy: 'PremiereDate,SortName',
+      Fields: 'ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated'
+    }));
+
+    const items = data.Items || [];
+
+    el.viewRoot.innerHTML = `
+      <h2 class="section-title">${escapeHtml(collection.Name || '')}</h2>
+      <p class="settings-hint">${escapeHtml(t('collection.items', { count: items.length }))}</p>
+      <div class="grid" id="collection-grid"></div>`;
+
+    const grid = $('collection-grid');
+    if (!items.length) {
+      grid.outerHTML = `<div class="empty-state">${escapeHtml(t('home.empty'))}</div>`;
+    } else {
+      items.forEach((entry) => grid.appendChild(buildCard(entry)));
+    }
+
+    setStatus(collection.Name || '');
+  } catch (error) {
+    console.error(error);
+    showError(t('common.loadFailed', { error: error.message }), () => navigate(state.view, { push: false }));
+  }
+}
+
+/* ---------------- Genre ---------------- */
+
+function showGenre(name) {
+  setActiveNav(null);
+  return openCatalog({
+    title: t('genre.title', { name }),
+    types: 'Movie,Series,BoxSet',
+    genre: name
+  });
 }
 
 function renderTechPanel(item) {
@@ -1946,6 +2066,12 @@ function openItem(item) {
     case 'Playlist':
       navigate(() => showPlaylist(item));
       break;
+    case 'BoxSet':
+      navigate(() => showCollection(item));
+      break;
+    case 'Person':
+      navigate(() => showPerson(item));
+      break;
     case 'Audio':
       music.play([item], 0);
       break;
@@ -2018,7 +2144,7 @@ async function runSearch(term) {
   try {
     const data = await api(itemsUrl({
       SearchTerm: term,
-      IncludeItemTypes: 'Movie,Series,MusicAlbum,Audio,Episode',
+      IncludeItemTypes: 'Movie,Series,MusicAlbum,Audio,Episode,BoxSet,Person',
       Recursive: 'true',
       Limit: '120',
       Fields: 'ProductionYear,Overview,AlbumArtist,Artists,RunTimeTicks,DateCreated,OfficialRating,CommunityRating'
