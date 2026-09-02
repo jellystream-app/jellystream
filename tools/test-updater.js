@@ -42,7 +42,7 @@ app.whenReady().then(async () => {
 
   check('publish-Ziel gesetzt', Boolean(publish), publish ? publish.provider : 'fehlt');
   check('Zeigt auf das richtige Repo',
-    publish?.owner === 'ukyyyy' && publish?.repo === 'jellystream',
+    publish?.owner === 'jellystream-app' && publish?.repo === 'jellystream',
     `${publish?.owner}/${publish?.repo}`);
   check('updater.js wird mitgepackt', pkg.build.files.includes('updater.js'));
   check('release-Skript veroeffentlicht',
@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
 
   /* ---------- 3. Was liegt im Release? ---------- */
 
-  const base = 'https://github.com/ukyyyy/jellystream/releases/latest/download';
+  const base = 'https://github.com/jellystream-app/jellystream/releases/latest/download';
   const yml = await fetchText(`${base}/latest.yml`);
 
   if (yml.status === 0) {

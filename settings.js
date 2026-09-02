@@ -1619,7 +1619,7 @@ window.updater?.onEvent((info) => {
    TODO: Hier die echten Adressen eintragen. Solange sie leer sind,
    bleiben die Badges sichtbar, aber nicht anklickbar. */
 const PROJECT_LINKS = {
-  github: 'https://github.com/ukyyyy/jellystream',
+  github: 'https://github.com/jellystream-app/jellystream',
   kofi: 'https://ko-fi.com/jellystream'
 };
 
