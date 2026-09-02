@@ -31,27 +31,60 @@ Updater. Einzelne Bereiche lassen sich gezielt laufen lassen:
 | `npm run test:login` | Login-Layout bei verschiedenen Fenstergrößen |
 | `npm run test:updater` | Updater-Konfiguration und Release-Inhalt |
 
-## Automatisch bauen (GitHub Actions)
-
-`.github/workflows/build.yml` baut für **Windows und Linux**, sobald ein
-Versions-Tag geschoben wird — oder auf Knopfdruck im Actions-Tab.
+## Release veröffentlichen — ein Befehl für alle Plattformen
 
 ```bash
-npm version minor          # hebt die Version und legt den Tag an
-git push --follow-tags     # löst den Build aus
+npm version minor && git push --follow-tags
 ```
 
-Was passiert:
+Das ist alles. GitHub Actions baut daraufhin **Windows und Linux**,
+testet beides und hängt alle Pakete an ein Release:
+
+| Datei | Plattform |
+|---|---|
+| `Jellystream-Setup-<version>.exe` | Windows (Installer) |
+| `Jellystream-<version>-x86_64.AppImage` | Linux, ohne Installation lauffähig |
+| `Jellystream-<version>-amd64.deb` | Debian und Ubuntu |
+| `latest.yml` / `latest-linux.yml` | für den Updater — **ohne die passiert nichts** |
+| `*.blockmap` | lädt beim Update nur die geänderten Teile |
+
+`npm version` erhöht die Version in der `package.json`, legt den Tag an
+und committet beides. `--follow-tags` schiebt Commit und Tag zusammen.
+
+### Alternative: Release im Browser anlegen
+
+Funktioniert genauso — ein dort veröffentlichtes Release löst denselben
+Ablauf aus, und die Pakete werden angehängt.
+
+Wichtig: Ein über die Weboberfläche angelegtes Release erzeugt **kein**
+`push`-Ereignis für den Tag. Der Workflow lauscht deshalb auf beides
+(`release: published` **und** `push: tags`) — sonst passiert bei einem
+Weg nichts.
+
+### Nur bauen, ohne zu veröffentlichen
+
+Im Actions-Tab **Build → Run workflow**. Ohne Tag-Angabe entstehen nur
+Artefakte am Lauf, kein Release. Mit Tag-Angabe werden sie an dessen
+Release gehängt — praktisch, um ein fehlgeschlagenes Ziel nachzureichen.
+
+### Ablauf im Einzelnen
 
 1. Beide Läufer installieren die Abhängigkeiten und führen `npm test` aus
-   (unter Linux mit `xvfb`, weil die Tests echte Fenster öffnen)
+   (unter Linux mit `xvfb`, weil acht Testskripte echte Fenster öffnen)
 2. Windows baut den NSIS-Installer, Linux AppImage und `.deb`
-3. Die Pakete landen als Artefakte im Lauf
-4. Bei einem `v*`-Tag hängt ein zweiter Job sie an ein GitHub-Release —
-   **inklusive `latest.yml`**, ohne die der Updater nichts findet
+3. Ein zweiter Job sammelt beide Ergebnisse ein und hängt sie ans Release
 
 Schlägt ein Ziel fehl, läuft das andere weiter (`fail-fast: false`) — so
-sieht man, ob es an der Plattform liegt oder am Code.
+sieht man, ob es an der Plattform liegt oder am Code. Fehlt am Ende
+`latest.yml`, bricht der Release-Job ab: lieber kein Release als eines,
+mit dem der Updater nichts anfangen kann.
+
+### Updates unter Linux
+
+Nur die **AppImage**-Fassung erneuert sich selbst. Eine per `.deb`
+installierte App gehört der Paketverwaltung — dort würde ein
+Selbstupdate an fehlenden Rechten scheitern. Die App erkennt das und
+zeigt statt der Update-Prüfung einen entsprechenden Hinweis.
 
 ## Von Hand bauen
 

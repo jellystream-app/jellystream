@@ -1,22 +1,45 @@
 name: Build
 
+# Ein Befehl, ein vollständiges Release für alle Plattformen:
+#
+#   npm version minor && git push --follow-tags
+#
+# Actions baut daraufhin Windows und Linux, testet beides und hängt
+# alle Pakete an ein Release — samt latest.yml, ohne die der Updater
+# nichts findet.
+#
+# Wer lieber im Browser arbeitet: ein dort veröffentlichtes Release
+# löst denselben Ablauf aus (release/published). Ein über die
+# Weboberfläche angelegtes Release erzeugt KEIN push-Ereignis, deshalb
+# sind beide Auslöser nötig.
+
 on:
+  release:
+    types: [published]
+
   push:
     tags:
-      - "V*"          # baut automatisch bei jedem Versions-Tag (z.B. v1.0.0)
-  workflow_dispatch:  # zusätzlich manuell auslösbar über den Actions-Tab
+      # Beide Schreibweisen: bisherige Tags sind groß (V2.7.2),
+      # `npm version` schreibt klein (v2.8.0).
+      - "v*"
+      - "V*"
 
-# Ein laufender Build wird abgebrochen, wenn derselbe Tag erneut
-# geschoben wird — spart Laufzeit bei Korrekturen.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Vorhandener Tag, an dessen Release die Pakete gehängt werden (leer = nur Artefakte)"
+        required: false
+        default: ""
+
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.event.release.tag_name || github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     strategy:
       # Ein fehlgeschlagenes Ziel soll das andere nicht abwürgen:
-      # so sieht man, ob nur Linux oder wirklich beides klemmt.
+      # so sieht man, ob nur eine Plattform klemmt oder der Code.
       fail-fast: false
       matrix:
         include:
@@ -32,6 +55,10 @@ jobs:
     steps:
       - name: Repo auschecken
         uses: actions/checkout@v4
+        with:
+          # Beim manuellen Lauf mit Tag genau dessen Stand bauen,
+          # sonst den auslösenden Commit.
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       - name: Node einrichten
         uses: actions/setup-node@v4
@@ -67,11 +94,9 @@ jobs:
 
       - name: App bauen
         run: ${{ matrix.build_cmd }}
-        env:
-          # Ohne Token veröffentlicht electron-builder nichts —
-          # das Hochladen übernimmt der Release-Schritt unten.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Windows und Linux erzeugen jeweils eine eigene Updater-Datei
+      # (latest.yml / latest-linux.yml). Beide müssen ins Release.
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v4
         with:
@@ -87,11 +112,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Bei einem Versions-Tag die Pakete an ein Release hängen.
-  # latest.yml muss dabei sein, sonst findet der Updater nichts.
+  # Hängt die Pakete beider Plattformen an das Release des Tags.
+  # Existiert noch keines, wird es angelegt.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Läuft bei einem Tag-Push, einem veröffentlichten Release und
+    # beim manuellen Lauf, sofern dort ein Tag angegeben wurde.
+    if: >-
+      github.event_name == 'release' ||
+      startsWith(github.ref, 'refs/tags/') ||
+      inputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -102,9 +132,31 @@ jobs:
         with:
           path: artefakte
 
-      - name: Release anlegen oder ergänzen
+      # download-artifact legt je Plattform einen Unterordner an.
+      # Für den Release-Upload müssen alle Dateien flach nebeneinander
+      # liegen, sonst landen Pfade statt Namen im Release.
+      - name: Dateien zusammenlegen
+        run: |
+          mkdir -p release
+          find artefakte -type f -exec cp {} release/ \;
+          echo "Diese Dateien kommen ins Release:"
+          ls -la release/
+
+          # Ohne latest.yml findet der Updater keine Aktualisierung —
+          # lieber hier abbrechen als ein unbrauchbares Release
+          # veröffentlichen.
+          if [ ! -f release/latest.yml ]; then
+            echo "::error::latest.yml fehlt — der Windows-Build ist wohl fehlgeschlagen."
+            exit 1
+          fi
+
+      - name: An das Release hängen
         uses: softprops/action-gh-release@v2
         with:
-          files: artefakte/**/*
+          tag_name: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+          files: release/*
           draft: false
-          generate_release_notes: true
+          # Bereits vorhandene gleichnamige Dateien werden ersetzt,
+          # damit ein erneuter Lauf nicht scheitert.
+          fail_on_unmatched_files: true
+          generate_release_notes: ${{ github.event_name != 'release' }}

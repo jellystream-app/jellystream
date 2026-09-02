@@ -1536,9 +1536,11 @@ function renderUpdateState(info) {
 
   if (current) current.textContent = info.current || window.appInfo?.version || '—';
 
-  // Im Entwicklungslauf gibt es nichts zu aktualisieren
+  // Keine Updates moeglich — der Grund entscheidet, was dasteht
   if (info.supported === false) {
-    text.textContent = t('update.devMode');
+    text.textContent = info.reason === 'packageManaged'
+      ? t('update.packageManaged')
+      : t('update.devMode');
     dot.className = 'update-dot';
     bar.classList.add('hidden');
     install.classList.add('hidden');
