@@ -35,7 +35,10 @@
     "streaming",
     "media"
   ],
-  "author": "UkY",
+  "author": {
+    "name": "UkY",
+    "email": "jellystream-app@users.noreply.github.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^33.0.0",

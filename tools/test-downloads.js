@@ -47,14 +47,23 @@ const server = http.createServer((req, res) => {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function waitForState(id, wanted, timeout = 15000) {
+/* Grosszuegige Frist: lokal ist ein Download nach vier Sekunden
+   durch, CI-Laeufer brauchen mit langsamerer Platte deutlich
+   laenger. Eine zu knappe Frist laesst den Test dort scheitern,
+   obwohl der Download-Manager fehlerfrei arbeitet. */
+const STATE_TIMEOUT = Number(process.env.JF_TEST_TIMEOUT) || 60000;
+
+async function waitForState(id, wanted, timeout = STATE_TIMEOUT) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     const entry = downloads.list().find((e) => e.id === id);
     if (entry && entry.state === wanted) return entry;
     await wait(120);
   }
-  return downloads.list().find((e) => e.id === id) || null;
+
+  const entry = downloads.list().find((e) => e.id === id) || null;
+  console.log(`  (Frist von ${timeout}ms abgelaufen; Zustand: ${entry ? entry.state : 'kein Eintrag'})`);
+  return entry;
 }
 
 app.disableHardwareAcceleration();
@@ -135,7 +144,8 @@ app.whenReady().then(async () => {
     url: `${base}/slow.mkv`,
     container: 'mkv'
   });
-  await waitForState(slow.entry.id, 'running', 5000);
+  // Auf langsamen Laeufern dauert auch der Start laenger
+  await waitForState(slow.entry.id, 'running', 20000);
   await wait(300);
   downloads.cancel(slow.entry.id);
   await wait(400);
