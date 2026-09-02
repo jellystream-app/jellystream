@@ -182,80 +182,72 @@ body.is-mac .tb-controls { display: none; }
 body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 
 /* ============================== LOGIN ============================== */
+/* Flach und ruhig: eine Flaeche, keine Verlaeufe, kein Leuchten,
+   keine Effektebenen. Nur Text, Felder und ein Knopf. */
 .login-screen {
   position: fixed; inset: var(--tb-height) 0 0;
-  display: grid; place-items: center;
-  padding: 28px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% -10%, #16303c 0%, #0a0e14 55%);
+  background: var(--bg);
 }
 
-.login-aurora {
-  position: absolute; inset: -30%;
-  background:
-    radial-gradient(circle at 22% 30%, rgba(30, 202, 211, 0.24), transparent 42%),
-    radial-gradient(circle at 78% 62%, rgba(96, 88, 226, 0.22), transparent 46%),
-    radial-gradient(circle at 52% 88%, rgba(22, 166, 184, 0.18), transparent 44%);
-  filter: blur(48px);
-  animation: drift 22s ease-in-out infinite alternate;
+.login-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 28px 40px 0;
 }
 
-@keyframes drift {
-  0%   { transform: translate3d(0,0,0) scale(1); }
-  50%  { transform: translate3d(3%, -2%, 0) scale(1.08); }
-  100% { transform: translate3d(-3%, 2%, 0) scale(1.03); }
+.login-logo {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  display: block;
 }
 
-.login-noise {
-  position: absolute; inset: 0;
-  opacity: 0.5;
-  background-image: linear-gradient(rgba(255,255,255,0.014), rgba(255,255,255,0.014));
+.login-wordmark {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.login-card {
-  position: relative; z-index: 1;
-  width: min(430px, 100%);
-  padding: 40px 38px 34px;
-  border-radius: 24px;
-  background: rgba(14, 20, 29, 0.78);
-  backdrop-filter: blur(26px);
-  -webkit-backdrop-filter: blur(26px);
-  border: 1px solid var(--border-2);
-  box-shadow: var(--shadow-lg);
-  animation: rise 0.5s var(--ease) both;
-}
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(16px) scale(0.985); }
-  to   { opacity: 1; transform: none; }
-}
-
-.login-brand {
-  display: flex; align-items: center; gap: 13px;
-  margin-bottom: 30px;
-}
-
-.brand-orb {
-  display: grid; place-items: center;
-  width: 46px; height: 46px;
-  border-radius: 14px;
-  background: linear-gradient(140deg, var(--accent), #5b5be0);
-  box-shadow: 0 8px 22px rgba(30, 202, 211, 0.32);
-  flex-shrink: 0;
-}
-.brand-orb svg { width: 26px; height: 26px; fill: var(--on-accent); }
-.brand-orb.small { width: 36px; height: 36px; border-radius: 11px; }
-.brand-orb.small svg { width: 21px; height: 21px; }
-
-.brand-text h1 { font-size: 1.3rem; letter-spacing: -0.02em; line-height: 1.1; }
-.brand-text p {
-  font-size: 0.68rem; letter-spacing: 0.24em;
-  text-transform: uppercase; color: var(--accent);
+.login-stage {
+  width: min(380px, calc(100% - 56px));
+  justify-self: center;
+  align-self: center;
+  padding: 16px 0 28px;
 }
 
 .login-intro { margin-bottom: 26px; }
-.login-intro h2 { font-size: 1.75rem; letter-spacing: -0.02em; margin-bottom: 7px; }
-.login-intro p { color: var(--muted); font-size: 0.92rem; }
+.login-intro h2 {
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+.login-intro p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.login-footer {
+  padding: 0 40px 20px;
+  font-size: 0.75rem;
+  color: var(--muted-2);
+}
+
+@media (max-width: 620px) {
+  .login-header { padding: 22px 24px 0; }
+  .login-footer { padding: 0 24px 18px; }
+  .login-stage { width: calc(100% - 44px); }
+}
+
+/* Flache Fenster: oben ausrichten, sonst rutscht das Formular
+   unter den unteren Rand. */
+@media (max-height: 700px) {
+  .login-stage { align-self: start; padding-top: 6px; }
+  .login-header { padding-top: 18px; }
+  .login-intro { margin-bottom: 20px; }
+}
 
 .connect-form { display: grid; gap: 15px; }
 
@@ -269,19 +261,29 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 .field-input {
   display: flex; align-items: center; gap: 10px;
   padding: 0 12px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(255,255,255,0.045);
   border: 1px solid var(--border);
-  transition: border-color 0.16s var(--ease), background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
 }
 .field-input:focus-within {
   border-color: var(--accent);
   background: rgba(255,255,255,0.06);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.field-icon { width: 19px; height: 19px; color: var(--muted-2); flex-shrink: 0; }
-.field-input:focus-within .field-icon { color: var(--accent); }
+/* Ohne Karte brauchen die Felder etwas mehr Eigenkontrast */
+.login-stage .field-input {
+  background: var(--surface);
+  border-color: var(--border-2);
+}
+.login-stage .field-input:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+[data-theme="light"] .login-stage .field-input {
+  background: #fff;
+  border-color: rgba(10, 20, 40, 0.18);
+}
 
 .field-input input {
   flex: 1; min-width: 0;
@@ -309,12 +311,12 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 }
 .remember input { position: absolute; opacity: 0; width: 0; height: 0; }
 .checkmark {
-  width: 19px; height: 19px;
-  border-radius: 6px;
-  border: 1.6px solid var(--border-2);
-  background: rgba(255,255,255,0.04);
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-2);
+  background: transparent;
   display: grid; place-items: center;
-  transition: all 0.16s var(--ease);
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
   flex-shrink: 0;
 }
 .checkmark::after {
@@ -330,15 +332,14 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 .primary-btn {
   position: relative;
   margin-top: 6px;
-  padding: 14px 18px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  padding: 13px 18px;
+  border-radius: 8px;
+  background: var(--accent);
   color: var(--on-accent);
-  font-size: 0.98rem; font-weight: 700;
-  transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), opacity 0.16s var(--ease);
-  box-shadow: 0 10px 26px rgba(30, 202, 211, 0.26);
+  font-size: 0.95rem; font-weight: 600;
+  transition: background 0.14s var(--ease), opacity 0.14s var(--ease);
 }
-.primary-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(30, 202, 211, 0.34); }
+.primary-btn:hover:not(:disabled) { background: var(--accent-2); }
 .primary-btn:disabled { opacity: 0.65; cursor: default; }
 .primary-btn.loading .btn-label { opacity: 0; }
 .primary-btn.loading .btn-spinner { opacity: 1; }
@@ -399,7 +400,12 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   transition: background 0.15s var(--ease);
 }
 .nav-brand:hover { background: rgba(255,255,255,0.09); }
-.brand-logo { width: 27px; height: 27px; flex-shrink: 0; }
+.brand-logo {
+  width: 27px; height: 27px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  display: block;
+}
 .brand-word {
   font-size: 1.06rem; font-weight: 700; letter-spacing: -0.025em;
 }
@@ -2371,7 +2377,7 @@ kbd {
 .qc-box {
   display: grid; gap: 10px;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(127,127,127,0.08);
   border: 1px solid var(--border-2);
   text-align: center;
@@ -2379,8 +2385,8 @@ kbd {
 }
 .qc-hint { font-size: 0.84rem; color: var(--muted); }
 .qc-code {
-  font-size: 1.9rem; font-weight: 800;
-  letter-spacing: 0.24em;
+  font-size: 1.7rem; font-weight: 600;
+  letter-spacing: 0.2em;
   padding: 8px 0 4px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
