@@ -69,6 +69,13 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      # Electron lädt seine Binärdatei per postinstall in einen Cache
+      # außerhalb von node_modules. Wird node_modules aus dem Cache
+      # wiederhergestellt, läuft postinstall nicht — die Binärdatei
+      # fehlt dann und jeder Testaufruf bricht sofort ab.
+      - name: Electron-Binärdatei sicherstellen
+        run: node node_modules/electron/install.js
+
       # Die Testsuite öffnet echte Electron-Fenster. Auf den
       # Linux-Läufern gibt es keinen Bildschirm, deshalb xvfb.
       # Die Zusatzbibliotheken heißen je nach Ubuntu-Fassung anders
@@ -84,13 +91,44 @@ jobs:
             sudo apt-get install -y "$pkg" || echo "übersprungen: $pkg"
           done
 
+      # Zeigt, ob Electron wirklich startet. Schlägt das fehl, liegt
+      # es an der Umgebung, nicht am Code — und man sieht es hier,
+      # statt es aus einem Testfehler erraten zu müssen.
+      - name: Electron prüfen (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run --auto-servernum node -e "
+            const { execFileSync } = require('child_process');
+            const bin = require('electron');
+            console.log('Binärdatei:', bin);
+            console.log('Version:', execFileSync(bin, ['--version']).toString().trim());
+          "
+
+      - name: Electron prüfen (Windows)
+        if: runner.os == 'Windows'
+        run: node -e "const {execFileSync}=require('child_process');const bin=require('electron');console.log('Binaerdatei:',bin);console.log('Version:',execFileSync(bin,['--version']).toString().trim());"
+
+      # Ein einzelner npm-test-Aufruf verschluckt bei einem Fehlschlag,
+      # WELCHER Schritt gescheitert ist. Deshalb nacheinander mit
+      # sichtbarer Überschrift.
       - name: Tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npm test
+        run: |
+          for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
+            echo "::group::test:$t"
+            xvfb-run --auto-servernum npm run "test:$t" || { echo "::error::test:$t fehlgeschlagen"; exit 1; }
+            echo "::endgroup::"
+          done
 
       - name: Tests (Windows)
         if: runner.os == 'Windows'
-        run: npm test
+        shell: bash
+        run: |
+          for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
+            echo "::group::test:$t"
+            npm run "test:$t" || { echo "::error::test:$t fehlgeschlagen"; exit 1; }
+            echo "::endgroup::"
+          done
 
       - name: App bauen
         run: ${{ matrix.build_cmd }}
