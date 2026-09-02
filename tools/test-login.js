@@ -58,7 +58,7 @@ app.whenReady().then(async () => {
       /* --- Logo statt SVG-Platzhalter --- */
       const logo = document.querySelector('.login-logo');
       check('Logo vorhanden', Boolean(logo));
-      check('Logo zeigt auf icon.png', logo?.getAttribute('src') === 'build/icon.png',
+      check('Logo zeigt auf icon.png', logo?.getAttribute('src') === 'build/icons/128x128.png',
         logo?.getAttribute('src'));
       check('Logo ist geladen', logo?.complete && logo?.naturalWidth > 0,
         logo ? logo.naturalWidth + 'x' + logo.naturalHeight : 'fehlt');
@@ -134,7 +134,7 @@ app.whenReady().then(async () => {
       const navLogo = document.querySelector('.brand-logo');
       check('Navbar-Logo ist ein Bild', navLogo?.tagName === 'IMG', navLogo?.tagName);
       check('Navbar-Logo nutzt icon.png',
-        navLogo?.getAttribute('src') === 'build/icon.png', navLogo?.getAttribute('src'));
+        navLogo?.getAttribute('src') === 'build/icons/128x128.png', navLogo?.getAttribute('src'));
       check('Navbar-Logo ist geladen',
         navLogo?.complete && navLogo?.naturalWidth > 0,
         navLogo ? navLogo.naturalWidth + 'x' + navLogo.naturalHeight : 'fehlt');

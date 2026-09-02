@@ -11,7 +11,11 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const SVG = path.join(ROOT, 'logo.svg');
 const BUILD_DIR = path.join(ROOT, 'build');
-const SIZES = [16, 24, 32, 48, 64, 128, 256];
+/* 512 ist fuer Linux dabei: electron-builder braucht fuer AppImage
+   und .deb eine Fassung von mindestens 512px. Die ICO-Datei bekommt
+   sie nicht — Windows-Symbole gehen nur bis 256. */
+const SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
+const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 
 /** Baut eine ICO-Datei aus einer Liste von PNG-Buffern. */
 function buildIco(entries) {
@@ -116,16 +120,27 @@ app.whenReady().then(async () => {
       const dim = check.getSize();
       console.log(`  ${size}px -> ${dim.width}x${dim.height}, ${data.length} bytes`);
       entries.push({ size, data });
-      if (size === 256) fs.writeFileSync(path.join(BUILD_DIR, 'icon.png'), data);
+
+      /* Linux-Symbole als eigene Dateien: electron-builder liest
+         build/icons/ und waehlt daraus die passende Groesse. */
+      if (size >= 32) {
+        fs.mkdirSync(path.join(BUILD_DIR, 'icons'), { recursive: true });
+        fs.writeFileSync(path.join(BUILD_DIR, 'icons', `${size}x${size}.png`), data);
+      }
+
+      // Die Hauptdatei ist die groesste — fuer AppImage und .deb noetig
+      if (size === 512) fs.writeFileSync(path.join(BUILD_DIR, 'icon.png'), data);
     }
 
     win.destroy();
 
-    const ico = buildIco(entries);
+    // ICO ohne 512: Windows-Symbole gehen nur bis 256
+    const ico = buildIco(entries.filter((e) => ICO_SIZES.includes(e.size)));
     fs.writeFileSync(path.join(BUILD_DIR, 'icon.ico'), ico);
     fs.rmSync(TMP_DIR, { recursive: true, force: true });
-    console.log(`\nOK: build/icon.ico (${ico.length} bytes, ${entries.length} Groessen)`);
-    console.log('OK: build/icon.png (256x256)');
+    console.log(`\nOK: build/icon.ico (${ico.length} bytes)`);
+    console.log('OK: build/icon.png (512x512)');
+    console.log('OK: build/icons/ (32 bis 512 px)');
     app.exit(0);
   } catch (err) {
     console.error('FEHLER:', err && err.message ? err.message : err);
