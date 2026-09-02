@@ -95,6 +95,26 @@ jobs:
           BIN=$(node -p "require('electron')")
           ls -la "$BIN" || { echo "::error::Binärdatei fehlt: $BIN"; exit 1; }
 
+      # Ein einzelner Test mit voller Ausgabe. Steht am Anfang, damit
+      # die Fehlermeldung ganz oben im Log steht und nicht zwischen
+      # zwölf Testläufen untergeht.
+      - name: Erster Test einzeln (Diagnose)
+        shell: bash
+        continue-on-error: true
+        env:
+          ELECTRON_DISABLE_SANDBOX: 1
+        run: |
+          echo "=== Umgebung ==="
+          echo "ELECTRON_RUN_AS_NODE=[${ELECTRON_RUN_AS_NODE:-nicht gesetzt}]"
+          node --version
+
+          echo "=== test:downloads mit voller Ausgabe ==="
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run --auto-servernum npx electron tools/test-downloads.js 2>&1 | tail -40
+          else
+            npx electron tools/test-downloads.js 2>&1 | tail -40
+          fi
+
       # Die Testsuite öffnet echte Electron-Fenster. Auf den
       # Linux-Läufern gibt es keinen Bildschirm, deshalb xvfb.
       # Die Zusatzbibliotheken heißen je nach Ubuntu-Fassung anders
@@ -113,24 +133,37 @@ jobs:
       # Zeigt, ob Electron wirklich startet — und wenn nicht, WARUM.
       # ldd nennt fehlende Systembibliotheken beim Namen, statt sie
       # aus einem Testfehler erraten zu lassen.
+      # Nur Diagnose: der Schritt darf den Lauf nicht abbrechen. Ob
+      # Electron wirklich benutzbar ist, zeigen die Tests danach —
+      # ein --version-Aufruf kann aus anderen Gründen scheitern
+      # (Sandbox ohne Kernel-Namespaces) und sagt darüber nichts.
       - name: Electron prüfen (Linux)
         if: runner.os == 'Linux'
+        continue-on-error: true
         run: |
           BIN=$(node -p "require('electron')")
+          echo "Binärdatei: $BIN"
 
           # ldd nennt fehlende Systembibliotheken beim Namen — sonst
           # müsste man sie aus einem Startfehler erraten.
           echo "--- fehlende Bibliotheken (falls welche) ---"
-          ldd "$BIN" | grep "not found" || echo "keine"
+          ldd "$BIN" 2>&1 | grep "not found" || echo "keine"
 
-          echo "--- Startversuch ---"
-          xvfb-run --auto-servernum "$BIN" --version
+          echo "--- Startversuch (ohne Sandbox) ---"
+          xvfb-run --auto-servernum "$BIN" --no-sandbox --version 2>&1 || \
+            echo "Startversuch fehlgeschlagen — die Tests zeigen, ob es wirklich klemmt"
 
       # Ein einzelner npm-test-Aufruf verschluckt bei einem Fehlschlag,
       # WELCHER Schritt gescheitert ist. Deshalb nacheinander mit
       # sichtbarer Überschrift.
+      #
+      # ELECTRON_DISABLE_SANDBOX: auf CI-Läufern fehlen die
+      # Kernel-Namespaces, die Chromiums Sandbox braucht. Ohne das
+      # Flag startet Electron dort nicht.
       - name: Tests (Linux)
         if: runner.os == 'Linux'
+        env:
+          ELECTRON_DISABLE_SANDBOX: 1
         run: |
           for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
             echo "::group::test:$t"
@@ -141,6 +174,10 @@ jobs:
       - name: Tests (Windows)
         if: runner.os == 'Windows'
         shell: bash
+        env:
+          # Wäre die Variable gesetzt, liefe Electron als reines Node
+          # und öffnete kein Fenster — die Tests fänden dann nichts vor.
+          ELECTRON_RUN_AS_NODE: ""
         run: |
           for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
             echo "::group::test:$t"
