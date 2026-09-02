@@ -124,10 +124,22 @@ app.whenReady().then(async () => {
     console.log('\nHinweis: GitHub nicht erreichbar — Release-Pruefung entfaellt.\n');
   } else {
     const found = yml.status === 200;
-    check('latest.yml liegt im Release', found,
-      found ? 'gefunden' : `HTTP ${yml.status} — OHNE DIESE DATEI FINDET DER UPDATER NICHTS`);
+
+    /* Kein Fehlschlag, sondern ein deutlicher Hinweis: dass noch kein
+       Release die Datei enthaelt, ist ein Zustand des Repositories,
+       kein Fehler im Code. Sonst waere jeder CI-Lauf rot, solange das
+       erste Release aussteht — und rote Laeufe, die man ignoriert,
+       verlieren ihre Warnwirkung. */
+    if (!found) {
+      console.log('');
+      console.log('  ACHTUNG: latest.yml fehlt im neuesten Release (HTTP ' + yml.status + ').');
+      console.log('  Solange sie fehlt, findet der Updater keine Aktualisierungen.');
+      console.log('  Beim Veroeffentlichen alle Dateien aus dist/ hochladen.');
+      console.log('');
+    }
 
     if (found) {
+      check('latest.yml liegt im Release', true, 'gefunden');
       // Die Datei muss Version, Datei und Pruefsumme nennen
       check('latest.yml nennt eine Version', /^version:\s*\S+/m.test(yml.body),
         (yml.body.match(/^version:\s*(\S+)/m) || [])[1] || '');
