@@ -307,6 +307,10 @@ async function playVideo(item, siblings = [], options = {}) {
 
   vp.error.classList.add('hidden');
 
+  // Neuer Titel: Rueckfall wieder erlauben
+  vpFallbackTried = false;
+  vpCurrent.forceTranscode = false;
+
   // Spuren ermitteln — MediaSources kennt Ton- und Untertitelspuren
   let source = null;
   let detail = null;
@@ -320,7 +324,24 @@ async function playVideo(item, siblings = [], options = {}) {
   // X2: Kapitelmarken übernehmen
   vpCurrent.chapters = (detail?.Chapters || []).filter((c) => typeof c.StartPositionTicks === 'number');
 
-  const streams = source?.MediaStreams || [];
+  /* Die Spuren stehen je nach Jellyfin-Fassung entweder an der
+     MediaSource oder direkt am Titel. Beides beruecksichtigen —
+     sonst bleiben die Menues fuer Ton und Untertitel leer. */
+  let streams = source?.MediaStreams || detail?.MediaStreams || [];
+
+  if (!streams.length && item.Id) {
+    // Letzter Versuch ueber PlaybackInfo: liefert die Spuren immer mit
+    try {
+      const probe = await fetchPlaybackInfo(item, {});
+      const probeSource = probe?.MediaSources?.[0];
+      if (probeSource?.MediaStreams?.length) {
+        streams = probeSource.MediaStreams;
+        source = source || probeSource;
+      }
+    } catch (error) {
+      console.warn('Spuren auch ueber PlaybackInfo nicht ermittelbar:', error.message);
+    }
+  }
 
   vpCurrent.item = item;
   vpCurrent.mediaSourceId = source?.Id || item.Id;
@@ -443,7 +464,8 @@ async function loadVideoSource(startAt = 0) {
       subtitleIndex: burnIn ? vpCurrent.subtitleIndex : null,
       maxBitrate: vpCurrent.maxBitrate,
       startPositionTicks: Math.round(startAt * TICKS_PER_SECOND),
-      mediaSourceId: vpCurrent.mediaSourceId
+      mediaSourceId: vpCurrent.mediaSourceId,
+      forceTranscode: vpCurrent.forceTranscode
     });
 
     plan = resolveStream(info, item, {
@@ -639,9 +661,13 @@ function buildTrackMenus() {
     vp.audioMenu.appendChild(btn);
   });
 
-  /* --- Untertitel --- */
+  /* --- Untertitel ---
+     Der Knopf bleibt sichtbar, sobald es ueberhaupt Spuren gibt.
+     Frueher verschwand er, wenn die Spurliste leer blieb — dann
+     liess sich nichts mehr einschalten, obwohl die Datei
+     Untertitel enthielt. */
   const subTracks = vpCurrent.subtitleStreams;
-  vp.subs.classList.toggle('hidden', subTracks.length === 0);
+  vp.subs.classList.toggle('hidden', subTracks.length === 0 && !vpCurrent.local);
   vp.subsMenu.innerHTML = `<div class="menu-head">${escapeHtml(t('player.subtitleTrack'))}</div>`;
 
   const offBtn = document.createElement('button');
@@ -951,24 +977,28 @@ vp.video.addEventListener('error', async () => {
     return showPlayerError(t('player.failed'));
   }
 
+  /* Die Direktwiedergabe ist gescheitert — jetzt umrechnen lassen.
+     Das ist die Absicherung dafuer, dass das Profil grosszuegig ist:
+     lieber einmal direkt versuchen und im Fehlerfall umschalten, als
+     staendig vorsorglich umzurechnen. */
   if (!vpFallbackTried && !vpCurrent.transcoding) {
     vpFallbackTried = true;
     console.warn('Direktwiedergabe fehlgeschlagen — erzwinge Umrechnung');
     showPlayerError(t('player.retrying'));
 
-    // Bitrate begrenzen erzwingt beim Server den Transcoding-Weg
-    const previous = vpCurrent.maxBitrate;
-    vpCurrent.maxBitrate = previous || 20000000;
+    // Bleibt gesetzt, bis ein anderer Titel startet: sonst faellt der
+    // naechste Ladeversuch wieder auf die gescheiterte Direktwiedergabe
+    vpCurrent.forceTranscode = true;
     await loadVideoSource(mediaPosition());
-    vpCurrent.maxBitrate = previous;
     return;
   }
 
   showPlayerError(t('player.failed'));
 });
 
-// Bei jedem neuen Titel den Rueckfall wieder erlauben
-vp.video.addEventListener('loadstart', () => { vpFallbackTried = false; });
+/* Die Sperre wird NICHT bei loadstart zurueckgesetzt: der Rueckfall
+   loest selbst ein loadstart aus, womit er sich endlos wiederholen
+   koennte. Sie wird beim Start eines anderen Titels geloest. */
 
 const seekStep = () => prefs.seekStep || 10;
 

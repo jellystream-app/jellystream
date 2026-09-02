@@ -187,7 +187,47 @@ app.whenReady().then(async () => {
         vp.video.querySelectorAll('track').length === 0);
       state.serverUrl = savedUrl;
 
+      /* ====== Bedienbarkeit: der Untertitel-Knopf ======
+         Er war im Player unsichtbar, weil er bei leerer Spurliste
+         ausgeblendet wurde — dann liess sich nichts einschalten. */
+      vpCurrent.item = { Id: 'm', Name: 'Test' };
+      vpCurrent.local = false;
+
+      vpCurrent.subtitleStreams = [
+        { Index: 1, Language: 'ger', Codec: 'subrip', DisplayTitle: 'Deutsch' },
+        { Index: 2, Language: 'eng', Codec: 'subrip', DisplayTitle: 'English' }
+      ];
+      vpCurrent.audioStreams = [{ Index: 0, Language: 'ger', Codec: 'ac3', IsDefault: true }];
+      vpCurrent.subtitleIndex = null;
+      buildTrackMenus();
+
+      check('Untertitel-Knopf ist sichtbar',
+        !vp.subs.classList.contains('hidden'));
+
+      const entries = vp.subsMenu.querySelectorAll('button');
+      check('Menue listet Aus + beide Spuren', entries.length === 3,
+        entries.length + ' Eintraege');
+      check('Erster Eintrag ist "Aus"',
+        entries[0]?.textContent.trim().length > 0, entries[0]?.textContent.trim());
+      check('Aus ist zunaechst aktiv', entries[0]?.classList.contains('active'));
+
+      // Eine Spur waehlen
+      entries[1]?.click();
+      await new Promise((r) => setTimeout(r, 250));
+      check('Auswahl setzt den Index', vpCurrent.subtitleIndex === 1,
+        String(vpCurrent.subtitleIndex));
+
+      buildTrackMenus();
+      const after = vp.subsMenu.querySelectorAll('button');
+      check('Gewaehlte Spur ist markiert', after[1]?.classList.contains('active'));
+
+      // Ohne Spuren bleibt der Knopf verborgen
+      vpCurrent.subtitleStreams = [];
+      buildTrackMenus();
+      check('Ohne Spuren kein Knopf', vp.subs.classList.contains('hidden'));
+
       vpCurrent.item = null;
+      vpCurrent.subtitleIndex = null;
       return out;
     })()
   `);

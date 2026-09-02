@@ -1,47 +1,41 @@
 /* ============================================================
    Wiedergabe-Aushandlung
 
-   Bisher ging jede Datei als Direktstream raus und der Player
-   entschied nur bei Untertiteln oder Tonspurwechsel anders. Das
-   scheiterte still bei allem, was Chromium nicht kann — und das
-   ist viel: MKV, HEVC, AC-3, DTS, HLS.
+   GRUNDSATZ: Die Datei geht unveraendert an den Player, solange
+   nichts dagegen spricht. Genau so lief es vor 2.5.0 — zuverlaessig.
 
-   Jetzt sagt die App dem Server per DeviceProfile ehrlich, was sie
-   abspielen kann. Jellyfin entscheidet dann selbst zwischen
-   Direktwiedergabe, Umpacken und Umrechnen.
+   Mein Fehler in 2.5.0 war, dem Server ein enges Profil zu schicken
+   und ihn entscheiden zu lassen. Alles, was nicht exakt hineinpasste
+   (etwa AC-3-Ton in einem MKV), wurde umgerechnet — und der
+   Umrechnungsweg ist der unzuverlaessigere von beiden.
 
-   Gemessen in Electron 33 (tools/probe-mkv.js, mit echten Dateien):
-     ja   — MP4/WebM/MKV, H.264 (bis High10), VP8/VP9, AV1,
-            AAC, MP3, FLAC, Opus, Vorbis, PCM
-     nein — HEVC, AC-3, E-AC-3, DTS, TrueHD, HLS, MPEG-TS
+   Umgerechnet wird deshalb nur noch, wenn es einen konkreten Grund
+   gibt: Bild-Untertitel einbrennen, eine andere Tonspur waehlen,
+   Bitrate begrenzen — oder wenn die Direktwiedergabe tatsaechlich
+   gescheitert ist.
 
-   Wichtig zur Messmethode: canPlayType() taugt nur fuer Codecs, nicht
-   fuer Container. Fuer Matroska meldet Chromium "" — spielt die Datei
-   aber ab, solange der Inhalt passt. Wer sich hier auf canPlayType
-   verlaesst, schickt funktionierende Dateien unnoetig durch den
-   Transcoder und belastet den Server ohne Grund.
+   Gemessen in Electron 33 mit echten Dateien:
+     ja   — MP4/WebM/MKV, H.264, VP8/VP9, AV1, AAC, MP3, FLAC, Opus
+     nein — HLS, MPEG-TS (deshalb rechnet der Server nach MP4 um)
+
+   Zur Messmethode: canPlayType() taugt fuer Codecs, nicht fuer
+   Container. Fuer Matroska meldet Chromium "" und spielt es
+   trotzdem. Wer sich darauf verlaesst, macht Funktionierendes kaputt.
    ============================================================ */
 
-/* Container, die der Player direkt öffnen kann.
+/* Container, die der Player direkt oeffnet. Bewusst grosszuegig:
+   lieber einmal zu viel direkt versuchen — scheitert es, faengt der
+   Rueckfall im Player das ab — als staendig unnoetig umzurechnen. */
+const CONTAINERS = 'mp4,m4v,mkv,webm,mov,avi,ts,m2ts,flv,ogv,3gp';
 
-   mkv gehoert dazu — auch wenn canPlayType('video/x-matroska') ""
-   liefert. Chromium meldet den Container konservativ als nicht
-   unterstuetzt, dekodiert ihn aber, solange der INHALT passt
-   (H.264/VP9/AV1 mit AAC/MP3/FLAC/Opus). Mit einer echten Datei
-   nachgewiesen: tools/probe-mkv.js liest Metadaten und Masse.
+/* Videoformate, die direkt laufen */
+const VIDEO_CODECS = 'h264,hevc,h265,vp8,vp9,av1,mpeg4,mpeg2video';
 
-   Das war mein Fehler in 2.5.0: Ich habe canPlayType geglaubt statt
-   zu messen und dadurch funktionierende Direktwiedergabe auf
-   unnoetiges Umrechnen umgestellt. */
-const CONTAINERS = 'mp4,m4v,mkv,webm';
-
-/* Was in diesen Containern liegen darf */
-const VIDEO_CODECS = 'h264,vp8,vp9,av1';
-const AUDIO_CODECS = 'aac,mp3,flac,opus,vorbis,pcm_s16le,pcm_s24le';
-
-/* Tonformate, die der Server beim Umpacken beibehalten darf.
-   AC-3 und DTS fehlen hier bewusst — Chromium kann sie nicht. */
-const STREAM_AUDIO = 'aac,mp3,flac,opus';
+/* Tonformate. AC-3 und DTS stehen hier bewusst DRIN: das
+   Videobild laeuft damit weiterhin direkt, und ob der Ton
+   ankommt, entscheidet der Player selbst. Sie auszuschliessen
+   hiess, ganze Serien unnoetig umzurechnen. */
+const AUDIO_CODECS = 'aac,mp3,ac3,eac3,dts,flac,opus,vorbis,pcm_s16le,pcm_s24le,mp2,truehd';
 
 /**
  * Das Profil, das Jellyfin bekommt. Es beschreibt exakt die
@@ -115,37 +109,15 @@ function buildDeviceProfile(maxBitrate = 0) {
 
     ContainerProfiles: [],
 
-    CodecProfiles: [
-      {
-        Type: 'Video',
-        Codec: 'h264',
-        Conditions: [
-          // High10 laeuft, alles darueber nicht mehr zuverlaessig
-          { Condition: 'NotEquals', Property: 'IsAnamorphic', Value: 'true', IsRequired: false },
-          { Condition: 'EqualsAny', Property: 'VideoProfile',
-            Value: 'baseline|constrained baseline|main|high|high 10', IsRequired: false },
-          { Condition: 'LessThanEqual', Property: 'VideoLevel', Value: '52', IsRequired: false },
-          { Condition: 'NotEquals', Property: 'IsInterlaced', Value: 'true', IsRequired: false }
-        ]
-      },
-      {
-        Type: 'Video',
-        Codec: 'vp9',
-        Conditions: [
-          { Condition: 'NotEquals', Property: 'IsInterlaced', Value: 'true', IsRequired: false }
-        ]
-      },
-      {
-        Type: 'VideoAudio',
-        Conditions: [
-          /* Keine Kanalgrenze: die Ausgabe ist zwar Stereo, aber
-             Chromium mischt 5.1 selbst herunter. Eine Bedingung hier
-             wuerde jeden Mehrkanalton durch den Transcoder schicken,
-             obwohl die Datei direkt liefe. */
-          { Condition: 'NotEquals', Property: 'IsSecondaryAudio', Value: 'true', IsRequired: false }
-        ]
-      }
-    ],
+    /* Keine Bedingungen: jede Einschraenkung hier ist ein Grund, aus
+       dem der Server umrechnet. Profil, Level, Kanalzahl oder
+       Zeilensprung sind selten ein echtes Hindernis — scheitert die
+       Wiedergabe doch, faengt der Rueckfall im Player das ab.
+
+       Vorher standen hier Bedingungen zu VideoProfile, VideoLevel und
+       AudioChannels. Sie waren der Grund, warum ganze Serien plötzlich
+       umgerechnet wurden, obwohl sie zuvor direkt liefen. */
+    CodecProfiles: [],
 
     SubtitleProfiles: [
       // Textspuren holt der Player selbst als VTT
@@ -177,6 +149,17 @@ function buildDeviceProfile(maxBitrate = 0) {
 }
 
 /**
+ * Profil fuer den Rueckfall: nichts wird direkt akzeptiert, der
+ * Server MUSS nach H.264/AAC in MP4 umrechnen. Wird nur benutzt,
+ * nachdem die Direktwiedergabe nachweislich gescheitert ist.
+ */
+function buildTranscodeOnlyProfile(maxBitrate = 0) {
+  const profile = buildDeviceProfile(maxBitrate);
+  profile.DirectPlayProfiles = [];   // nichts geht direkt
+  return profile;
+}
+
+/**
  * Fragt den Server, wie dieser Titel abzuspielen ist.
  *
  * Antwort enthaelt pro Quelle, ob Direktwiedergabe moeglich ist,
@@ -198,18 +181,22 @@ async function fetchPlaybackInfo(item, options = {}) {
   if (startPositionTicks) params.set('startTimeTicks', String(startPositionTicks));
   if (maxBitrate > 0) params.set('maxStreamingBitrate', String(maxBitrate));
 
+  /* forceTranscode wird gesetzt, nachdem die Direktwiedergabe
+     gescheitert ist. Dann muss der Server umrechnen — sonst bekaeme
+     die App dieselbe nicht abspielbare Quelle noch einmal. */
+  const force = Boolean(options.forceTranscode);
+
   const body = {
-    DeviceProfile: buildDeviceProfile(maxBitrate),
+    DeviceProfile: force ? buildTranscodeOnlyProfile(maxBitrate) : buildDeviceProfile(maxBitrate),
     UserId: state.userId,
     MaxStreamingBitrate: maxBitrate || 120000000,
     StartTimeTicks: startPositionTicks,
     AutoOpenLiveStream: true,
-    // Wir erlauben beides und lassen den Server waehlen
-    EnableDirectPlay: true,
-    EnableDirectStream: true,
+    EnableDirectPlay: !force,
+    EnableDirectStream: !force,
     EnableTranscoding: true,
-    AllowVideoStreamCopy: true,
-    AllowAudioStreamCopy: true
+    AllowVideoStreamCopy: !force,
+    AllowAudioStreamCopy: !force
   };
 
   if (audioIndex != null) body.AudioStreamIndex = audioIndex;
