@@ -70,9 +70,16 @@ function init(notifier) {
   });
 }
 
-/** Im Entwicklungslauf gibt es nichts zu aktualisieren. */
+/** Im Entwicklungslauf gibt es nichts zu aktualisieren.
+ *
+ *  Unter Linux kann sich nur ein AppImage selbst erneuern. Eine per
+ *  .deb installierte Fassung gehoert der Paketverwaltung — dort
+ *  wuerde ein Selbstupdate an fehlenden Rechten scheitern und nur
+ *  eine unverstaendliche Fehlermeldung erzeugen. */
 function canUpdate() {
-  return app.isPackaged;
+  if (!app.isPackaged) return false;
+  if (process.platform === 'linux' && !process.env.APPIMAGE) return false;
+  return true;
 }
 
 async function check({ silent = true } = {}) {
@@ -117,7 +124,19 @@ function installNow() {
   return true;
 }
 
+/** Warum Updates abgeschaltet sind — fuer eine verstaendliche Anzeige. */
+function unsupportedReason() {
+  if (!app.isPackaged) return 'development';
+  if (process.platform === 'linux' && !process.env.APPIMAGE) return 'packageManaged';
+  return null;
+}
+
 module.exports = {
   init, start, stop, check, installNow,
-  getState: () => ({ ...state, current: app.getVersion(), supported: canUpdate() })
+  getState: () => ({
+    ...state,
+    current: app.getVersion(),
+    supported: canUpdate(),
+    reason: unsupportedReason()
+  })
 };

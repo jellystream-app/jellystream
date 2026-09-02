@@ -12,12 +12,10 @@
     "app.name": "Jellystream",
     "app.brandTop": "Jellystream",
     "app.brandBottom": "Desktop",
-
     "window.minimize": "Minimieren",
     "window.maximize": "Maximieren",
     "window.restore": "Wiederherstellen",
     "window.close": "Schließen",
-
     "login.welcome": "Willkommen zurück",
     "login.intro": "Melde dich an deinem Server an, um fortzufahren.",
     "login.server": "Server",
@@ -39,7 +37,6 @@
     "login.failed": "Verbindung fehlgeschlagen",
     "login.badCredentials": "Benutzername oder Passwort stimmt nicht.",
     "login.unreachable": "Server nicht erreichbar. Prüfe die Adresse.",
-
     "nav.home": "Startseite",
     "nav.movies": "Filme",
     "nav.series": "Serien",
@@ -52,19 +49,16 @@
     "nav.searchPlaceholder": "Suchen…",
     "nav.back": "Zurück",
     "nav.noLibraries": "Keine Bibliotheken",
-
     "profile.settings": "Einstellungen",
     "profile.addServer": "Server hinzufügen",
     "profile.signOut": "Abmelden",
     "profile.user": "Benutzer",
-
     "home.resume": "Weiterschauen",
     "home.nextUp": "Als Nächstes",
     "home.latestMovies": "Neu hinzugefügte Filme",
     "home.latestSeries": "Neu hinzugefügte Serien",
     "home.favorites": "Meine Liste",
     "home.empty": "Hier ist noch nichts.",
-
     "card.play": "Abspielen",
     "card.favorite": "Favorit",
     "card.addFavorite": "Zu Favoriten",
@@ -78,11 +72,9 @@
     "card.download": "Herunterladen",
     "card.untitled": "Unbenannt",
     "card.image": "Titelbild: {name}",
-
     "badge.new": "NEU",
     "badge.newEpisode": "NEUE FOLGE",
     "badge.added": "NEU HINZUGEFÜGT",
-
     "detail.play": "Abspielen",
     "detail.resume": "Fortsetzen",
     "detail.firstEpisode": "Erste Folge",
@@ -126,13 +118,11 @@
     "detail.episode": "Folge {number}",
     "detail.episodes": "Folgen",
     "detail.allSeasons": "Alle Staffeln",
-
     "episode.watched": "Gesehen",
     "episode.remaining": "Noch {time}",
     "episode.noEpisodes": "Keine Folgen gefunden.",
     "episode.loadFailed": "Folgen konnten nicht geladen werden.",
     "episode.retry": "Erneut versuchen",
-
     "catalog.sort": "Sortierung",
     "catalog.sortName": "Name",
     "catalog.sortAdded": "Zuletzt hinzugefügt",
@@ -143,11 +133,9 @@
     "catalog.noResults": "Nichts gefunden.",
     "catalog.loadMore": "Mehr laden",
     "catalog.count": "{count} Einträge",
-
     "search.results": "Ergebnisse für „{term}\"",
     "search.noResults": "Nichts gefunden für „{term}\".",
     "search.hint": "Tippe, um zu suchen.",
-
     "music.title": "Musik",
     "music.recentAlbums": "Zuletzt hinzugefügt",
     "music.artists": "Interpreten",
@@ -170,7 +158,6 @@
     "music.playPause": "Abspielen / Pause",
     "music.expand": "Player öffnen",
     "music.collapse": "Player schließen",
-
     "player.play": "Abspielen",
     "player.pause": "Pause",
     "player.playPause": "Abspielen / Pause",
@@ -198,7 +185,6 @@
     "player.failed": "Wiedergabe fehlgeschlagen — Format wird evtl. nicht unterstützt.",
     "player.imageSubtitle": "Bild",
     "player.offlinePlayback": "Offline: {name}",
-
     "playlist.add": "„{name}\" hinzufügen",
     "playlist.title": "Zu Playlist hinzufügen",
     "playlist.none": "Noch keine Playlist — unten eine neue anlegen.",
@@ -212,7 +198,6 @@
     "playlist.titleCount": "{count} Titel",
     "playlist.play": "Abspielen",
     "playlist.shuffle": "Zufall",
-
     "offline.title": "Offline",
     "offline.usage": "{size} belegt · {count} Titel",
     "offline.openFolder": "Ordner öffnen",
@@ -233,7 +218,6 @@
     "offline.alreadyRunning": "Läuft bereits.",
     "offline.serverUnreachable": "Server nicht erreichbar — Offline-Bestand wird angezeigt.",
     "offline.modeStatus": "Offline — kein Server erreichbar",
-
     "download.title": "„{name}\" herunterladen",
     "download.hint": "Qualität wählen. Die Originaldatei ist ein unveränderter Abzug vom Server, die anderen Stufen rechnet der Server kleiner.",
     "download.original": "Originaldatei",
@@ -252,7 +236,6 @@
     "dlError.failed": "Fehlgeschlagen",
     "download.duplicate": "Steht bereits in der Liste.",
     "download.startFailed": "Start fehlgeschlagen: {error}",
-
     "server.add": "Server hinzufügen",
     "server.address": "Server-Adresse",
     "server.connect": "Verbinden und wechseln",
@@ -265,7 +248,6 @@
     "server.remove": "Entfernen",
     "server.removeAria": "Server entfernen",
     "server.active": "aktiv",
-
     "settings.title": "Einstellungen",
     "settings.close": "Einstellungen schließen",
     "settings.catDesign": "Darstellung",
@@ -275,7 +257,6 @@
     "settings.catDownloads": "Downloads",
     "settings.catServers": "Server",
     "settings.catAbout": "Über",
-
     "settings.theme": "Design",
     "settings.themeHint": "Farbschema der Oberfläche.",
     "settings.accent": "Akzentfarbe",
@@ -291,7 +272,6 @@
     "settings.cardLarge": "Groß",
     "settings.reduceMotion": "Animationen reduzieren",
     "settings.reduceMotionHint": "Übergänge und Bewegungen abschalten",
-
     "settings.customCss": "Eigenes CSS",
     "settings.customCssHint": "Überschreibt das gewählte Theme. Die Vorlage enthält alle verfügbaren Farbvariablen als Startpunkt.",
     "settings.customCssEnable": "Eigenes CSS anwenden",
@@ -312,7 +292,6 @@
     "settings.cssResetDone": "Zurückgesetzt",
     "settings.cssOverwriteConfirm": "Der Editor ist nicht leer. Inhalt durch die Vorlage ersetzen?",
     "settings.themeDelete": "Theme löschen",
-
     "settings.playback": "Wiedergabe",
     "settings.autoplay": "Nächste Folge automatisch",
     "settings.autoplayHint": "Am Ende direkt weiterspielen",
@@ -327,7 +306,6 @@
     "settings.seekStepHint": "Wie weit die Pfeiltasten springen",
     "settings.seconds": "{count} Sekunden",
     "settings.nextupSeconds": "Countdown-Dauer",
-
     "settings.subtitles": "Untertitel",
     "settings.subtitlesHint": "Darstellung im Video.",
     "settings.subPreview": "Beispieltext für Untertitel",
@@ -348,7 +326,6 @@
     "settings.lyrics": "Songtext",
     "settings.lyricsOffset": "Zeitversatz",
     "settings.lyricsHint": "Negative Werte zeigen den Text früher an.",
-
     "settings.downloads": "Downloads",
     "settings.downloadsHint": "Heruntergeladene Titel lassen sich ohne Server abspielen.",
     "settings.storageLocation": "Speicherort",
@@ -363,14 +340,12 @@
     "settings.deleteWatchedHint": "Gesehene Folgen automatisch entfernen",
     "settings.storageChanged": "Speicherort geändert. Bereits geladene Dateien bleiben, wo sie sind.",
     "settings.desktopOnly": "Nur in der Desktop-App verfügbar",
-
     "settings.servers": "Server",
     "settings.about": "Über",
     "settings.application": "Anwendung",
     "settings.server": "Server",
     "settings.version": "Version",
     "settings.signedInAs": "Angemeldet als",
-
     "settings.language": "Sprache",
     "settings.languageHint": "Sprache der Oberfläche wählen. Übersetzungen sind willkommen — das Projekt ist quelloffen.",
     "settings.languageBy": "von {author}",
@@ -389,12 +364,10 @@
     "settings.languageSourceUser": "Eigene Datei",
     "settings.languageSourceCache": "Heruntergeladen",
     "settings.languageSourceBuiltin": "Mitgeliefert",
-
     "footer.github": "GitHub",
     "footer.kofi": "Ko-fi",
     "footer.githubTitle": "Projekt auf GitHub",
     "footer.kofiTitle": "Auf Ko-fi unterstützen",
-
     "shortcuts.title": "Tastenkürzel",
     "shortcuts.playPause": "Abspielen / Pause",
     "shortcuts.back5": "5 Sekunden zurück",
@@ -407,7 +380,6 @@
     "shortcuts.close": "Schließen",
     "shortcuts.search": "Suche",
     "shortcuts.help": "Diese Übersicht",
-
     "common.loading": "Lädt…",
     "common.retry": "Erneut versuchen",
     "common.cancel": "Abbrechen",
@@ -426,7 +398,6 @@
     "common.markedUnwatched": "Als ungesehen markiert",
     "common.removedFromResume": "Aus „Weiterschauen\" entfernt",
     "common.sessionExpired": "Sitzung abgelaufen",
-
     "auth.sessionExpiredLong": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
     "auth.serverUnreachable": "Jellyfin-Server nicht erreichbar: {url}. Bitte prüfe, ob der Server läuft und die URL korrekt ist.",
     "auth.wrongCredentials": "Anmeldung fehlgeschlagen: Benutzername oder Passwort ist falsch.",
@@ -435,21 +406,17 @@
     "auth.missingFields": "Bitte Server, Benutzername und Passwort eingeben.",
     "auth.hidePassword": "Passwort verbergen",
     "auth.librariesFailed": "Bibliotheken konnten nicht geladen werden",
-
     "badge.newEpisodeType": "NEUE FOLGE",
     "badge.newSeries": "NEUE SERIE",
     "badge.newMovie": "NEUER FILM",
     "badge.newAlbum": "NEUES ALBUM",
-
     "row.previous": "{title}: zurück",
     "row.next": "{title}: weiter",
     "hero.previous": "Vorheriger Titel",
     "hero.next": "Nächster Titel",
-
     "home.newMovies": "Neue Filme",
     "home.newSeries": "Neue Serien",
     "home.favoritesRow": "Favoriten",
-
     "sort.added": "Zuletzt hinzugefügt",
     "sort.newest": "Neueste zuerst",
     "sort.oldest": "Älteste zuerst",
@@ -464,7 +431,6 @@
     "filter.watched": "Gesehen",
     "filter.favorites": "Gemerkt",
     "filter.group": "Filter",
-
     "catalog.noneForFilter": "Keine Titel für diese Auswahl.",
     "detail.noSeasons": "Keine Staffeln gefunden.",
     "detail.noDetails": "Keine Details hinterlegt.",
@@ -484,14 +450,11 @@
     "detail.language": "Sprache",
     "detail.favoriteFailed": "Favorit konnte nicht gesetzt werden",
     "detail.statusFailed": "Status konnte nicht geändert werden",
-
     "album.noTracks": "Keine Titel gefunden.",
     "album.loadFailed": "Album konnte nicht geladen werden: {error}",
     "artist.noAlbums": "Keine Alben gefunden.",
-
     "search.heading": "Ergebnisse für „{term}\"",
     "search.failed": "Suche fehlgeschlagen: {error}",
-
     "queue.removeFromQueue": "Aus der Warteschlange nehmen",
     "queue.cannotRemoveCurrent": "Der laufende Titel kann nicht entfernt werden.",
     "queue.playsNext": "„{name}\" kommt als Nächstes",
@@ -499,27 +462,21 @@
     "music.repeatTrack": "Titel wiederholen",
     "music.repeatOff": "Wiederholen aus",
     "music.repeatAll": "Alle wiederholen",
-
     "hero.watch": "Ansehen",
     "hero.play": "Abspielen",
     "hero.moreInfo": "Mehr Infos",
-
     "home.noMedia": "Keine Medien gefunden.",
     "detail.noTechInfo": "Keine technischen Angaben verfügbar.",
     "detail.episodesFailed": "Folgen konnten nicht geladen werden.",
     "album.trackCount": "{count} Titel",
     "music.noLyricsAvailable": "Kein Songtext verfügbar",
-
-    "nav.libraries": "Bibliotheken",
     "nav.toHome": "Zur Startseite",
     "nav.skipToContent": "Zum Inhalt springen",
-
     "player.nextTrack": "Nächster",
     "player.previousTrack": "Vorheriger",
     "player.closePlayer": "Player schließen",
     "player.muteShort": "Stumm",
     "player.qualityShort": "Qualität",
-
     "update.title": "Updates",
     "update.hint": "Jellystream aktualisiert sich selbst. Ein geladenes Update wird beim nächsten Schließen der App eingespielt.",
     "update.currentVersion": "Installierte Fassung",
@@ -536,18 +493,17 @@
     "update.readyToast": "Version {version} ist bereit. Sie wird beim Schließen von Jellystream eingespielt.",
     "update.unsignedNote": "Jellystream ist noch nicht signiert. Windows SmartScreen kann beim Installieren warnen — dann auf „Weitere Informationen\" → „Trotzdem ausführen\" gehen. Der Download stammt aus den GitHub-Releases des Projekts.",
     "update.releaseNotes": "Änderungen auf GitHub",
-
     "player.directPlay": "Direkt",
     "player.directStream": "Umpacken",
     "player.transcoding": "Umrechnen",
     "player.transcodeReason": "Server rechnet um: {reason}",
     "player.retrying": "Direktwiedergabe fehlgeschlagen — versuche Umrechnung…",
-
     "person.filmography": "Zu sehen in",
     "person.noItems": "Nichts zu dieser Person gefunden.",
     "person.asRole": "als {role}",
     "genre.title": "Genre: {name}",
     "collection.items": "{count} Titel in dieser Sammlung",
-    "nav.collections": "Sammlungen"
+    "nav.collections": "Sammlungen",
+    "update.packageManaged": "Über die Paketverwaltung installiert — Updates kommen von dort"
   }
 }
