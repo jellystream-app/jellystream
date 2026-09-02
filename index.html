@@ -32,22 +32,12 @@
 
     <!-- ============================= LOGIN ============================= -->
     <div id="login-screen" class="login-screen">
-      <div class="login-aurora"></div>
-      <div class="login-noise"></div>
+      <header class="login-header">
+        <img class="login-logo" src="build/icon.png" alt="Jellystream" width="40" height="40" />
+        <span class="login-wordmark">Jellystream</span>
+      </header>
 
-      <div class="login-card">
-        <div class="login-brand">
-          <div class="brand-orb">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2.6c-1 0-1.9.5-2.4 1.4L3.2 15.3c-.5.9-.5 2 0 2.9.5.9 1.4 1.4 2.4 1.4h12.8c1 0 1.9-.5 2.4-1.4.5-.9.5-2 0-2.9L14.4 4c-.5-.9-1.4-1.4-2.4-1.4z" />
-            </svg>
-          </div>
-          <div class="brand-text">
-            <h1>Jellystream</h1>
-            <p>Desktop</p>
-          </div>
-        </div>
-
+      <div class="login-stage">
         <div class="login-intro">
           <h2 data-i18n="login.welcome">Willkommen zurück</h2>
           <p data-i18n="login.intro">Melde dich an deinem Server an, um fortzufahren.</p>
@@ -57,11 +47,6 @@
           <div class="field">
             <label for="server-url" data-i18n="login.server">Server</label>
             <div class="field-input">
-              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 5h16v6H4zM4 13h16v6H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                <circle cx="7.5" cy="8" r="1" fill="currentColor"/>
-                <circle cx="7.5" cy="16" r="1" fill="currentColor"/>
-              </svg>
               <input id="server-url" name="url" type="text" value="http://localhost:8096" placeholder="http://localhost:8096" spellcheck="false" required />
             </div>
           </div>
@@ -69,10 +54,6 @@
           <div class="field">
             <label for="username" data-i18n="login.username">Benutzername</label>
             <div class="field-input">
-              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/>
-                <path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-              </svg>
               <input id="username" name="username" type="text" data-i18n-placeholder="login.usernamePlaceholder" placeholder="Benutzername" autocomplete="username" required />
             </div>
           </div>
@@ -80,10 +61,6 @@
           <div class="field">
             <label for="password" data-i18n="login.password">Passwort</label>
             <div class="field-input">
-              <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="5" y="10.5" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
-                <path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-              </svg>
               <input id="password" name="password" type="password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Passwort" autocomplete="current-password" required />
               <button type="button" id="toggle-password" class="ghost-icon" data-i18n-title="login.showPassword" title="Passwort anzeigen" data-i18n-aria="login.showPassword" aria-label="Passwort anzeigen">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -123,6 +100,10 @@
           </div>
         </form>
       </div>
+
+      <footer class="login-footer">
+        <span id="login-version"></span>
+      </footer>
     </div>
 
     <!-- ============================= APP ============================= -->
@@ -131,16 +112,7 @@
       <header id="navbar" class="navbar">
         <div class="nav-left">
           <button class="nav-brand" id="nav-brand" type="button" data-i18n-title="nav.toHome" title="Zur Startseite">
-            <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
-              <defs>
-                <linearGradient id="jf-grad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#aa5cc3"/>
-                  <stop offset="100%" stop-color="#00a4dc"/>
-                </linearGradient>
-              </defs>
-              <path fill="url(#jf-grad)" d="M16 4.2c-1.06 0-1.9.62-2.62 2.03l-4.9 9.6c-1.4 2.76-2.1 4.14-1.55 5.1.54.95 2.08.95 5.16.95h7.82c3.08 0 4.62 0 5.16-.95.55-.96-.15-2.34-1.55-5.1l-4.9-9.6C17.9 4.82 17.06 4.2 16 4.2z"/>
-              <path fill="url(#jf-grad)" opacity="0.55" d="M16 12.9c-.5 0-.9.3-1.25.97l-2.33 4.57c-.67 1.31-1 1.97-.74 2.42.26.46 1 .46 2.46.46h3.72c1.47 0 2.2 0 2.46-.46.26-.45-.07-1.11-.74-2.42l-2.33-4.57c-.35-.67-.75-.97-1.25-.97z"/>
-            </svg>
+            <img class="brand-logo" src="build/icon.png" alt="" width="27" height="27" />
             <span class="brand-word">Jellystream</span>
           </button>
 

@@ -2517,5 +2517,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   initTitleBar();
   // Uebersetzungen vor allem anderen — sonst blitzt die Standardsprache auf
   await initI18n();
+
+  const version = $('login-version');
+  if (version) version.textContent = `v${window.appInfo?.version || ''}`;
+
   restoreSession();
 });
