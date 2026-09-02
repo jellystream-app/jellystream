@@ -20,7 +20,8 @@
     "test:updater": "electron tools/test-updater.js",
     "test:playback": "electron tools/test-playback.js",
     "test:login": "electron tools/test-login.js",
-    "test:fixes": "electron tools/test-fixes.js"
+    "test:fixes": "electron tools/test-fixes.js",
+    "build": "electron-builder --publish never"
   },
   "homepage": "https://github.com/ukyyyy/jellystream",
   "repository": {
@@ -103,6 +104,33 @@
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
       "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "AudioVideo",
+      "synopsis": "Desktop client for Jellyfin media servers",
+      "description": "Jellystream streams films, series and music from a Jellyfin server, with offline downloads and translations.",
+      "desktop": {
+        "entry": {
+          "Name": "Jellystream",
+          "Categories": "AudioVideo;Video;Player;Network;"
+        }
+      },
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   },
   "dependencies": {
