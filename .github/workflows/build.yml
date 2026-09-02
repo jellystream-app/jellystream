@@ -95,25 +95,6 @@ jobs:
           BIN=$(node -p "require('electron')")
           ls -la "$BIN" || { echo "::error::Binärdatei fehlt: $BIN"; exit 1; }
 
-      # Ein einzelner Test mit voller Ausgabe. Steht am Anfang, damit
-      # die Fehlermeldung ganz oben im Log steht und nicht zwischen
-      # zwölf Testläufen untergeht.
-      - name: Erster Test einzeln (Diagnose)
-        shell: bash
-        continue-on-error: true
-        env:
-          ELECTRON_DISABLE_SANDBOX: 1
-        run: |
-          echo "=== Umgebung ==="
-          echo "ELECTRON_RUN_AS_NODE=[${ELECTRON_RUN_AS_NODE:-nicht gesetzt}]"
-          node --version
-
-          echo "=== test:downloads mit voller Ausgabe ==="
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run --auto-servernum npx electron tools/test-downloads.js 2>&1 | tail -40
-          else
-            npx electron tools/test-downloads.js 2>&1 | tail -40
-          fi
 
       # Die Testsuite öffnet echte Electron-Fenster. Auf den
       # Linux-Läufern gibt es keinen Bildschirm, deshalb xvfb.
@@ -174,11 +155,12 @@ jobs:
       - name: Tests (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        env:
-          # Wäre die Variable gesetzt, liefe Electron als reines Node
-          # und öffnete kein Fenster — die Tests fänden dann nichts vor.
-          ELECTRON_RUN_AS_NODE: ""
         run: |
+          # ELECTRON_RUN_AS_NODE muss WEG sein, nicht leer: ein leerer
+          # String zählt als gesetzt, dann startet Electron als reines
+          # Node, öffnet keine Fenster und meldet die Node-Version.
+          unset ELECTRON_RUN_AS_NODE
+
           for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
             echo "::group::test:$t"
             npm run "test:$t" || { echo "::error::test:$t fehlgeschlagen"; exit 1; }
