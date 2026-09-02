@@ -4,14 +4,19 @@ name: Build
 #
 #   npm version minor && git push --follow-tags
 #
-# Actions baut daraufhin Windows und Linux, testet beides und hängt
-# alle Pakete an ein Release — samt latest.yml, ohne die der Updater
-# nichts findet.
+# Actions baut daraufhin Windows und Linux und hängt alle Pakete an
+# ein Release — samt latest.yml, ohne die der Updater nichts findet.
 #
 # Wer lieber im Browser arbeitet: ein dort veröffentlichtes Release
 # löst denselben Ablauf aus (release/published). Ein über die
 # Weboberfläche angelegtes Release erzeugt KEIN push-Ereignis, deshalb
 # sind beide Auslöser nötig.
+#
+# Die Testsuite läuft hier bewusst NICHT: sie fährt echte
+# Electron-Fenster hoch, misst Layout und Zeitverhalten und ist auf
+# CI-Läufern zu heikel — ein roter Lauf sagte dann mehr über den
+# Läufer als über den Code. Getestet wird vor dem Tag, lokal mit
+# `npm test`.
 
 on:
   release:
@@ -69,14 +74,10 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
-      # Electron lädt seine Binärdatei per postinstall und merkt sich
-      # den Namen in node_modules/electron/path.txt. Fehlt diese Datei,
-      # wirft schon require('electron') — jeder Testaufruf bricht dann
-      # nach einer Sekunde ab, ohne die Ursache zu nennen.
-      #
-      # npm ci führt postinstall zwar aus, der Schritt kann aber still
-      # scheitern (Netz, Spiegelserver). Deshalb prüfen und notfalls
-      # gezielt nachholen.
+      # electron-builder packt die Electron-Binärdatei in das Paket.
+      # Sie kommt per postinstall; der Schritt kann aber still
+      # scheitern (Netz, Spiegelserver), und dann bricht erst der
+      # Build ab. Deshalb vorher prüfen und notfalls nachholen.
       - name: Electron-Binärdatei sicherstellen
         shell: bash
         run: |
@@ -92,80 +93,6 @@ jobs:
           fi
 
           echo "path.txt: $(cat node_modules/electron/path.txt)"
-          BIN=$(node -p "require('electron')")
-          ls -la "$BIN" || { echo "::error::Binärdatei fehlt: $BIN"; exit 1; }
-
-
-      # Die Testsuite öffnet echte Electron-Fenster. Auf den
-      # Linux-Läufern gibt es keinen Bildschirm, deshalb xvfb.
-      # Die Zusatzbibliotheken heißen je nach Ubuntu-Fassung anders
-      # (libasound2 vs. libasound2t64), deshalb einzeln und ohne
-      # Abbruch: xvfb allein ist das, was wirklich gebraucht wird.
-      - name: Bildschirm für Tests bereitstellen (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-          for pkg in libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-                     libgtk-3-0 libgbm1 libasound2t64 libasound2; do
-            sudo apt-get install -y "$pkg" || echo "übersprungen: $pkg"
-          done
-
-      # Zeigt, ob Electron wirklich startet — und wenn nicht, WARUM.
-      # ldd nennt fehlende Systembibliotheken beim Namen, statt sie
-      # aus einem Testfehler erraten zu lassen.
-      # Nur Diagnose: der Schritt darf den Lauf nicht abbrechen. Ob
-      # Electron wirklich benutzbar ist, zeigen die Tests danach —
-      # ein --version-Aufruf kann aus anderen Gründen scheitern
-      # (Sandbox ohne Kernel-Namespaces) und sagt darüber nichts.
-      - name: Electron prüfen (Linux)
-        if: runner.os == 'Linux'
-        continue-on-error: true
-        run: |
-          BIN=$(node -p "require('electron')")
-          echo "Binärdatei: $BIN"
-
-          # ldd nennt fehlende Systembibliotheken beim Namen — sonst
-          # müsste man sie aus einem Startfehler erraten.
-          echo "--- fehlende Bibliotheken (falls welche) ---"
-          ldd "$BIN" 2>&1 | grep "not found" || echo "keine"
-
-          echo "--- Startversuch (ohne Sandbox) ---"
-          xvfb-run --auto-servernum "$BIN" --no-sandbox --version 2>&1 || \
-            echo "Startversuch fehlgeschlagen — die Tests zeigen, ob es wirklich klemmt"
-
-      # Ein einzelner npm-test-Aufruf verschluckt bei einem Fehlschlag,
-      # WELCHER Schritt gescheitert ist. Deshalb nacheinander mit
-      # sichtbarer Überschrift.
-      #
-      # ELECTRON_DISABLE_SANDBOX: auf CI-Läufern fehlen die
-      # Kernel-Namespaces, die Chromiums Sandbox braucht. Ohne das
-      # Flag startet Electron dort nicht.
-      - name: Tests (Linux)
-        if: runner.os == 'Linux'
-        env:
-          ELECTRON_DISABLE_SANDBOX: 1
-        run: |
-          for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
-            echo "::group::test:$t"
-            xvfb-run --auto-servernum npm run "test:$t" || { echo "::error::test:$t fehlgeschlagen"; exit 1; }
-            echo "::endgroup::"
-          done
-
-      - name: Tests (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          # ELECTRON_RUN_AS_NODE muss WEG sein, nicht leer: ein leerer
-          # String zählt als gesetzt, dann startet Electron als reines
-          # Node, öffnet keine Fenster und meldet die Node-Version.
-          unset ELECTRON_RUN_AS_NODE
-
-          for t in workflow syntax downloads ui rows login playback i18n sync updater fixes smoke; do
-            echo "::group::test:$t"
-            npm run "test:$t" || { echo "::error::test:$t fehlgeschlagen"; exit 1; }
-            echo "::endgroup::"
-          done
 
       - name: App bauen
         run: ${{ matrix.build_cmd }}

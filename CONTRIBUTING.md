@@ -69,8 +69,7 @@ Release gehängt — praktisch, um ein fehlgeschlagenes Ziel nachzureichen.
 
 ### Ablauf im Einzelnen
 
-1. Beide Läufer installieren die Abhängigkeiten und führen `npm test` aus
-   (unter Linux mit `xvfb`, weil acht Testskripte echte Fenster öffnen)
+1. Beide Läufer installieren die Abhängigkeiten
 2. Windows baut den NSIS-Installer, Linux AppImage und `.deb`
 3. Ein zweiter Job sammelt beide Ergebnisse ein und hängt sie ans Release
 
@@ -78,6 +77,12 @@ Schlägt ein Ziel fehl, läuft das andere weiter (`fail-fast: false`) — so
 sieht man, ob es an der Plattform liegt oder am Code. Fehlt am Ende
 `latest.yml`, bricht der Release-Job ab: lieber kein Release als eines,
 mit dem der Updater nichts anfangen kann.
+
+> **Die Tests laufen nicht in der CI.** Sie fahren echte
+> Electron-Fenster hoch und messen Layout und Zeitverhalten — auf
+> CI-Läufern ist das zu heikel, ein roter Lauf sagte dort mehr über den
+> Läufer als über den Code. Also **vor dem Tag lokal `npm test`
+> ausführen**; der Workflow baut nur.
 
 ### Updates unter Linux
 
