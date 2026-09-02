@@ -188,13 +188,37 @@ app.whenReady().then(async () => {
             'scrollLeft ' + scroll.scrollLeft);
       check('Am Anfang ist next an', !nextBtn.classList.contains('off'));
 
-      // So lange klicken, bis das Ende erreicht ist
-      for (let i = 0; i < 12 && !nextBtn.classList.contains('off'); i++) {
+      /* So lange klicken, bis das Ende erreicht ist.
+
+         Die Zahl der noetigen Klicks haengt von der Fensterbreite ab:
+         je schmaler, desto weniger Kacheln pro Seite und desto mehr
+         Klicks. Eine feste Obergrenze (frueher 12) reichte auf
+         schmaleren Fenstern nicht — der Test scheiterte dann, obwohl
+         die Pfeile korrekt arbeiteten.
+
+         Abbruch jetzt daran, dass sich nichts mehr bewegt: das ist
+         das eigentliche Kriterium und gilt bei jeder Breite. */
+      let lastLeft = -1;
+      let stuck = 0;
+
+      // Obergrenze aus der tatsaechlichen Geometrie statt fester Zahl:
+      // so viele Klicks, wie hoechstens noetig sind, plus Reserve.
+      const perClick = Math.max(1, scroll.clientWidth - 60);
+      const maxClicks = Math.ceil(scroll.scrollWidth / perClick) + 5;
+
+      for (let i = 0; i < maxClicks && !nextBtn.classList.contains('off') && stuck < 3; i++) {
         nextBtn.click();
         await wait(120);
+        if (scroll.scrollLeft === lastLeft) stuck += 1;
+        else stuck = 0;
+        lastLeft = scroll.scrollLeft;
       }
+
+      // Verkettung statt Template-Literal: der gesamte Testcode steckt
+      // selbst in einem Literal, eine Interpolation wuerde dort greifen.
+      const maxScroll = scroll.scrollWidth - scroll.clientWidth;
       check('Am Ende ist next aus', nextBtn.classList.contains('off'),
-            'scrollLeft ' + scroll.scrollLeft);
+            'scrollLeft ' + scroll.scrollLeft + ' von max ' + maxScroll);
       check('Am Ende ist prev an', !prevBtn.classList.contains('off'));
 
       prefs.reduceMotion = motionBefore;

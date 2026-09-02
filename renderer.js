@@ -663,8 +663,11 @@ function buildRow(title, items, options = {}) {
      Pfeile müssen deshalb aktiv nachgeführt werden. Der Loop läuft, bis
      die Position zwei Bilder lang unverändert ist (Ende der Animation). */
   let followFrame = null;
+  let followTimer = null;
   const followScroll = () => {
     cancelAnimationFrame(followFrame);
+    clearTimeout(followTimer);
+
     let last = -1;
     let settled = 0;
 
@@ -677,6 +680,12 @@ function buildRow(title, items, options = {}) {
       if (settled < 2) followFrame = requestAnimationFrame(step);
     };
     followFrame = requestAnimationFrame(step);
+
+    /* Sicherheitsnetz per Zeitgeber: requestAnimationFrame ruht in
+       unsichtbaren oder minimierten Fenstern. Ohne diesen Nachschlag
+       bliebe der Pfeil dort im alten Zustand stehen, obwohl die Reihe
+       längst am Ende ist. */
+    followTimer = setTimeout(updateArrows, 420);
   };
 
   // Um volle Kacheln blättern, damit nie eine halbe am Rand steht
