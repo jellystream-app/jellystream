@@ -520,33 +520,84 @@ function showPlayerError(message) {
   vp.error.classList.remove('hidden');
 }
 
-function applyTextSubtitle(stream) {
-  // Alte Spuren entfernen
+/* Zuletzt erzeugte Blob-Adresse — muss freigegeben werden, sonst
+   sammeln sich die Daten im Speicher an. */
+let subtitleObjectUrl = null;
+let subtitleToken = 0;
+
+/**
+ * Haengt eine Textspur an das Video.
+ *
+ * Wichtig: <track> erzwingt CORS, anders als <video src>. Jellyfin
+ * schickt bei Untertiteln keinen Access-Control-Allow-Origin-Header,
+ * weshalb ein direktes track.src IMMER scheitert — lautlos, nur mit
+ * einem error-Ereignis. Genau daran lag es, dass Untertitel nie
+ * erschienen.
+ *
+ * Der Umweg über fetch() umgeht das: connect-src erlaubt den Abruf,
+ * und der fertige Text wird als Blob angehaengt, der vom eigenen
+ * Ursprung stammt.
+ */
+async function applyTextSubtitle(stream) {
+  const token = ++subtitleToken;
+
+  // Alte Spuren entfernen und Speicher freigeben
   vp.video.querySelectorAll('track').forEach((track) => track.remove());
   Array.from(vp.video.textTracks).forEach((track) => { track.mode = 'disabled'; });
 
-  if (!stream) return;
+  if (subtitleObjectUrl) {
+    URL.revokeObjectURL(subtitleObjectUrl);
+    subtitleObjectUrl = null;
+  }
+
+  if (!stream || !vpCurrent.item) return;
 
   const url =
     `${state.serverUrl}/Videos/${vpCurrent.item.Id}/${vpCurrent.mediaSourceId}` +
     `/Subtitles/${stream.Index}/Stream.vtt?api_key=${encodeURIComponent(state.token)}`;
 
+  let vtt;
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: buildAuthHeader(state.token) }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    vtt = await response.text();
+  } catch (error) {
+    console.warn('Untertitel nicht ladbar:', error.message, url);
+    return;
+  }
+
+  // Zwischenzeitlich umgeschaltet? Dann diese Spur verwerfen.
+  if (token !== subtitleToken) return;
+
+  if (!/^\s*WEBVTT/.test(vtt)) {
+    console.warn('Untertitel-Antwort ist kein WebVTT');
+    return;
+  }
+
+  subtitleObjectUrl = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' }));
+
   const track = document.createElement('track');
   track.kind = 'subtitles';
   track.label = subtitleLabel(stream);
   track.srclang = (stream.Language || 'und').slice(0, 2);
-  track.src = url;
+  track.src = subtitleObjectUrl;
   track.default = true;
   vp.video.appendChild(track);
 
-  // Erst nach dem Laden aktivierbar
-  track.addEventListener('load', () => {
-    if (vp.video.textTracks.length) {
-      vp.video.textTracks[vp.video.textTracks.length - 1].mode = 'showing';
-    }
-  });
+  const show = () => {
+    const tracks = vp.video.textTracks;
+    if (tracks.length) tracks[tracks.length - 1].mode = 'showing';
+  };
+
+  track.addEventListener('load', show);
+  // Manche Fassungen melden kein load-Ereignis — nach kurzer Zeit
+  // trotzdem einschalten, sonst bleibt die Spur unsichtbar.
+  setTimeout(() => { if (token === subtitleToken) show(); }, 300);
+
   track.addEventListener('error', () => {
-    console.warn('Untertitel konnten nicht geladen werden:', url);
+    console.warn('Untertitelspur konnte nicht verarbeitet werden');
   });
 }
 

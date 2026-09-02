@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const downloads = require('./downloads');
 const languages = require('./languages');
@@ -28,6 +28,41 @@ function createWindow() {
 
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'index.html'));
+
+  /* Externe Adressen gehoeren in den Standardbrowser, nicht in ein
+     Fenster der App: dort gaebe es weder Adressleiste noch Zurueck,
+     und der Nutzer sitzt in einer Sackgasse.
+
+     Nur http und https werden geoeffnet — bei file:// oder anderen
+     Schemata koennte ein praeparierter Link sonst Programme starten. */
+  const openExternally = (url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url);
+        return true;
+      }
+    } catch (error) {
+      /* keine gueltige Adresse */
+    }
+    console.warn('Externe Adresse abgelehnt:', url);
+    return false;
+  };
+
+  // target="_blank" und window.open()
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternally(url);
+    return { action: 'deny' };
+  });
+
+  // Ein Klick, der das Fenster selbst wegnavigieren wuerde
+  win.webContents.on('will-navigate', (event, url) => {
+    const current = win.webContents.getURL();
+    if (url !== current) {
+      event.preventDefault();
+      openExternally(url);
+    }
+  });
 
   // Die Leiste muss wissen, ob das Fenster maximiert ist (Icon-Wechsel)
   const sendState = () => {
