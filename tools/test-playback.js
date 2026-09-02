@@ -7,12 +7,69 @@
  */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const http = require('http');
 
 const ROOT = path.join(__dirname, '..');
+
+/* ---- Eine winzige, echte Matroska-Datei bauen ----
+   Nur so laesst sich pruefen, ob Chromium MKV wirklich oeffnet.
+   canPlayType() reicht dafuer nicht: es meldet fuer Container
+   konservativ "nein", auch wenn die Wiedergabe funktioniert. */
+
+function vint(v) {
+  if (v < 0x7f) return Buffer.from([0x80 | v]);
+  if (v < 0x3fff) return Buffer.from([0x40 | (v >> 8), v & 0xff]);
+  return Buffer.from([0x20 | (v >> 16), (v >> 8) & 0xff, v & 0xff]);
+}
+const el = (id, p) => Buffer.concat([Buffer.from(id), vint(p.length), p]);
+const uint = (n) => (n < 256 ? Buffer.from([n]) : Buffer.from([(n >> 8) & 0xff, n & 0xff]));
+
+function buildTinyMkv() {
+  const header = el([0x1a, 0x45, 0xdf, 0xa3], Buffer.concat([
+    el([0x42, 0x86], uint(1)), el([0x42, 0xf7], uint(1)),
+    el([0x42, 0xf2], uint(4)), el([0x42, 0xf3], uint(8)),
+    el([0x42, 0x82], Buffer.from('matroska')),
+    el([0x42, 0x87], uint(4)), el([0x42, 0x85], uint(2))
+  ]));
+  const info = el([0x15, 0x49, 0xa9, 0x66], Buffer.concat([
+    el([0x2a, 0xd7, 0xb1], Buffer.from([0x0f, 0x42, 0x40])),
+    el([0x44, 0x89], Buffer.from(new Float64Array([1000]).buffer).reverse())
+  ]));
+  const avcc = Buffer.from([
+    0x01, 0x42, 0xc0, 0x1e, 0xff, 0xe1, 0x00, 0x0d,
+    0x67, 0x42, 0xc0, 0x1e, 0xd9, 0x00, 0xa0, 0xfd,
+    0x80, 0x88, 0x00, 0x00, 0x03, 0x00, 0x01,
+    0x01, 0x00, 0x04, 0x68, 0xce, 0x3c, 0x80
+  ]);
+  const tracks = el([0x16, 0x54, 0xae, 0x6b], el([0xae], Buffer.concat([
+    el([0xd7], uint(1)), el([0x73, 0xc5], uint(1)), el([0x83], uint(1)),
+    el([0x86], Buffer.from('V_MPEG4/ISO/AVC')), el([0x63, 0xa2], avcc),
+    el([0xe0], Buffer.concat([el([0xb0], uint(320)), el([0xba], uint(240))]))
+  ])));
+  const frame = Buffer.concat([vint(1), Buffer.from([0, 0]), Buffer.from([0x80]), Buffer.alloc(64)]);
+  const cluster = el([0x1f, 0x43, 0xb6, 0x75], Buffer.concat([
+    el([0xe7], uint(0)), el([0xa3], frame)
+  ]));
+  return Buffer.concat([header, el([0x18, 0x53, 0x80, 0x67],
+    Buffer.concat([info, tracks, cluster]))]);
+}
 
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
+  /* Testserver, der eine echte MKV-Datei ausliefert */
+  const mkvData = buildTinyMkv();
+  const mediaServer = http.createServer((req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'video/x-matroska',
+      'Content-Length': mkvData.length
+    });
+    res.end(mkvData);
+  });
+  await new Promise((r) => mediaServer.listen(0, '127.0.0.1', r));
+  const mkvUrl = `http://127.0.0.1:${mediaServer.address().port}/film.mkv`;
   ipcMain.handle('languages:list', () => require('../languages').list());
   ipcMain.handle('languages:get', (e, code) => require('../languages').get(code));
   require('../languages').init();
@@ -33,6 +90,26 @@ app.whenReady().then(async () => {
       const out = [];
       const check = (name, ok, detail) => out.push({ name, ok: Boolean(ok), detail: detail || '' });
 
+      /* ====== Der Nachweis: spielt Chromium MKV wirklich? ======
+         Diese Pruefung ist der Grund, warum mkv im Profil steht.
+         Schlaegt sie fehl, war die Annahme falsch — dann gehoert
+         mkv wieder heraus. */
+      const mkvVerdict = await new Promise((resolve) => {
+        const el = document.createElement('video');
+        let done = false;
+        const finish = (v) => { if (!done) { done = true; resolve(v); } };
+        el.addEventListener('loadedmetadata', () => finish('ok:' + el.videoWidth + 'x' + el.videoHeight));
+        el.addEventListener('error', () => finish('fehler'));
+        setTimeout(() => finish('zeitueberschreitung'), 4000);
+        el.src = ${JSON.stringify(mkvUrl)};
+        el.load();
+      });
+
+      check('Echte MKV-Datei wird geoeffnet', mkvVerdict.startsWith('ok:'), mkvVerdict);
+      check('canPlayType meldet MKV faelschlich als nicht abspielbar',
+            document.createElement('video').canPlayType('video/x-matroska') === '',
+            'genau deshalb darf man sich nicht darauf verlassen');
+
       state.serverUrl = 'http://test.local';
       state.userId = 'u1';
       state.token = 'tok';
@@ -46,19 +123,17 @@ app.whenReady().then(async () => {
       const direct = profile.DirectPlayProfiles.find((p) => p.Type === 'Video');
       check('Direktwiedergabe-Profil vorhanden', Boolean(direct));
 
-      // Jeder angebotene Container muss wirklich abspielbar sein
-      const badContainers = (direct.Container || '').split(',').filter((c) => {
-        const type = c === 'webm' ? 'video/webm' : 'video/mp4';
-        return !video.canPlayType(type);
-      });
-      check('Nur abspielbare Container im Profil', badContainers.length === 0,
-            badContainers.join(', '));
+      /* MKV MUSS direkt angeboten werden. canPlayType meldet dafuer ""
+         — Chromium spielt Matroska aber ab, solange der Inhalt passt
+         (mit echter Datei nachgewiesen, siehe tools/probe-mkv.js).
+         Ohne mkv im Profil landen genau die haeufigsten Dateien
+         unnoetig im Transcoder. */
+      check('MKV wird direkt angeboten',
+            (direct.Container || '').split(',').includes('mkv'), direct.Container);
+      check('MP4 wird direkt angeboten',
+            (direct.Container || '').split(',').includes('mp4'), direct.Container);
 
-      // MKV darf NICHT drinstehen — Chromium kann es nicht
-      check('MKV wird nicht als direkt angeboten',
-            !(direct.Container || '').includes('mkv'), direct.Container);
-
-      // HEVC ebenso wenig
+      // HEVC dagegen fehlt dem Build wirklich — auch mit echter Datei
       check('HEVC wird nicht als direkt angeboten',
             !/hevc|h265|hvc1/i.test(direct.VideoCodec || ''), direct.VideoCodec);
 
@@ -82,6 +157,15 @@ app.whenReady().then(async () => {
             'canPlayType: "' + video.canPlayType('application/vnd.apple.mpegurl') + '"');
       check('MPEG-TS ist tatsächlich nicht abspielbar',
             !video.canPlayType('video/mp2t'));
+
+      /* --- Kein unnoetiges Umrechnen bei Mehrkanalton ---
+         Die Ausgabe ist Stereo, aber Chromium mischt selbst herunter.
+         Eine Kanalbedingung wuerde jede 5.1-Tonspur durch den
+         Transcoder schicken, obwohl die Datei direkt liefe. */
+      const audioCond = profile.CodecProfiles.find((p) => p.Type === 'VideoAudio');
+      const hasChannelLimit = audioCond?.Conditions?.some((c) => c.Property === 'AudioChannels');
+      check('Keine Kanalgrenze erzwingt Umrechnen', !hasChannelLimit,
+            hasChannelLimit ? 'AudioChannels-Bedingung vorhanden' : 'keine');
 
       /* --- Bitratenlimit landet im Profil --- */
       const capped = buildDeviceProfile(4000000);
@@ -112,6 +196,19 @@ app.whenReady().then(async () => {
       check('Direkt-URL trägt Static=true', directPlan.url.includes('Static=true'));
       check('PlaySessionId wird übernommen', directPlan.playSessionId === 'sess-1');
       check('Kein Server-Sprung bei Direkt', directPlan.seekHandledByServer === false);
+
+      /* Fall A2: MKV, das der Server als direkt abspielbar meldet.
+         Genau dieser Fall ging in 2.5.0 kaputt — mkv fehlte im
+         Profil, also bot der Server nur noch Umrechnen an. */
+      const mkvPlan = resolveStream({
+        PlaySessionId: 'sess-mkv',
+        MediaSources: [{ Id: 'srcmkv', Container: 'mkv', SupportsDirectPlay: true, SupportsDirectStream: true }]
+      }, item, {});
+
+      check('MKV wird direkt gespielt', mkvPlan.method === 'DirectPlay', mkvPlan.method);
+      check('MKV-URL behaelt den Container',
+            mkvPlan.url.includes('/stream.mkv'), mkvPlan.url.slice(0, 62));
+      check('MKV wird nicht umgerechnet', !mkvPlan.url.includes('VideoCodec='));
 
       // Fall B: Server schickt eine Umrechnungs-Adresse
       const transPlan = resolveStream({
@@ -225,6 +322,7 @@ app.whenReady().then(async () => {
   const failed = results.filter((r) => !r.ok).length;
   console.log(`\n${results.length - failed}/${results.length} bestanden`);
 
+  mediaServer.close();
   win.destroy();
   app.exit(failed ? 1 : 0);
 });

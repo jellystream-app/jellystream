@@ -10,14 +10,30 @@
    abspielen kann. Jellyfin entscheidet dann selbst zwischen
    Direktwiedergabe, Umpacken und Umrechnen.
 
-   Gemessen mit tools/probe-codecs.js in Electron 33:
-     ja   — MP4/WebM, H.264 (bis High10), VP8/VP9, AV1,
+   Gemessen in Electron 33 (tools/probe-mkv.js, mit echten Dateien):
+     ja   — MP4/WebM/MKV, H.264 (bis High10), VP8/VP9, AV1,
             AAC, MP3, FLAC, Opus, Vorbis, PCM
-     nein — MKV, HEVC, AC-3, E-AC-3, DTS, TrueHD, HLS, MPEG-TS
+     nein — HEVC, AC-3, E-AC-3, DTS, TrueHD, HLS, MPEG-TS
+
+   Wichtig zur Messmethode: canPlayType() taugt nur fuer Codecs, nicht
+   fuer Container. Fuer Matroska meldet Chromium "" — spielt die Datei
+   aber ab, solange der Inhalt passt. Wer sich hier auf canPlayType
+   verlaesst, schickt funktionierende Dateien unnoetig durch den
+   Transcoder und belastet den Server ohne Grund.
    ============================================================ */
 
-/* Container, die der Player direkt öffnen kann */
-const CONTAINERS = 'mp4,m4v,webm';
+/* Container, die der Player direkt öffnen kann.
+
+   mkv gehoert dazu — auch wenn canPlayType('video/x-matroska') ""
+   liefert. Chromium meldet den Container konservativ als nicht
+   unterstuetzt, dekodiert ihn aber, solange der INHALT passt
+   (H.264/VP9/AV1 mit AAC/MP3/FLAC/Opus). Mit einer echten Datei
+   nachgewiesen: tools/probe-mkv.js liest Metadaten und Masse.
+
+   Das war mein Fehler in 2.5.0: Ich habe canPlayType geglaubt statt
+   zu messen und dadurch funktionierende Direktwiedergabe auf
+   unnoetiges Umrechnen umgestellt. */
+const CONTAINERS = 'mp4,m4v,mkv,webm';
 
 /* Was in diesen Containern liegen darf */
 const VIDEO_CODECS = 'h264,vp8,vp9,av1';
@@ -122,8 +138,10 @@ function buildDeviceProfile(maxBitrate = 0) {
       {
         Type: 'VideoAudio',
         Conditions: [
-          // Mehr als Stereo kann der Player nicht ausgeben
-          { Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false },
+          /* Keine Kanalgrenze: die Ausgabe ist zwar Stereo, aber
+             Chromium mischt 5.1 selbst herunter. Eine Bedingung hier
+             wuerde jeden Mehrkanalton durch den Transcoder schicken,
+             obwohl die Datei direkt liefe. */
           { Condition: 'NotEquals', Property: 'IsSecondaryAudio', Value: 'true', IsRequired: false }
         ]
       }
