@@ -123,7 +123,10 @@ function scanHtml(file) {
   }
 }
 
-['renderer.js', 'player.js', 'offline.js', 'settings.js', 'i18n.js'].forEach(scanJs);
+[
+  'renderer.js', 'player.js', 'offline.js', 'settings.js', 'i18n-dom.js',
+  'core/i18n.js', 'core/playback.js'
+].forEach(scanJs);
 scanHtml('index.html');
 
 const byFile = {};
