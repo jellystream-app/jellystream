@@ -70,10 +70,68 @@ function buildAuthHeader(token) {
   return `MediaBrowser ${parts.join(', ')}`;
 }
 
+/* Ergänzt ein fehlendes Schema.
+
+   Warum https:// und nicht http://: Steht ein Reverse Proxy davor,
+   leitet er http auf https um. Browser und WebView entfernen bei
+   einem Schema-Wechsel aber den Authorization-Header — Jellyfin
+   sieht den Login-POST dann ohne Client-Kennung und antwortet mit
+   "400 Error processing request". Der Fehler zeigt auf die
+   Zugangsdaten, obwohl nur das Schema falsch war.
+
+   Ein reiner Heimserver ohne TLS beantwortet https nicht; für den
+   fällt checkServerReachability() unten auf http zurück. Andersherum
+   ginge es nicht: Der Rückfall von http auf https käme zu spät,
+   der Header wäre beim Umleiten schon verloren. */
 function normalizeServerUrl(rawUrl) {
   let url = rawUrl.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   return url;
+}
+
+/* Prüft, ob unter dieser Adresse ein Jellyfin antwortet — ohne
+   Umleitung, damit ein Schema-Wechsel hier auffällt und nicht erst
+   beim Login den Authorization-Header kostet. */
+async function probeServer(serverUrl) {
+  for (const path of ['/System/Info/Public', '/System/Info', '/']) {
+    try {
+      const response = await fetch(`${serverUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual'
+      });
+
+      /* Umleitung: Die Adresse stimmt, das Schema nicht. Das Ziel
+         gilt ab jetzt — sonst verlöre der Login-POST seinen Header. */
+      if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+        const target = response.headers.get('Location');
+        if (target) {
+          try {
+            const redirected = new URL(target, `${serverUrl}${path}`);
+            return { reachable: true, url: redirected.origin };
+          } catch (error) {
+            /* Unbrauchbares Location-Feld: als erreichbar werten */
+          }
+        }
+        /* Bei 'opaqueredirect' verbirgt der Browser das Ziel. Dann
+           bleibt nur der Schema-Wechsel als Vermutung. */
+        return {
+          reachable: true,
+          url: serverUrl.startsWith('http://')
+            ? serverUrl.replace(/^http:/i, 'https:')
+            : serverUrl
+        };
+      }
+
+      /* 401/403 heißt: Da ist ein Server, er will nur Anmeldung. */
+      if (response.ok || response.status === 401 || response.status === 403) {
+        return { reachable: true, url: serverUrl };
+      }
+    } catch (error) {
+      /* nächster Pfad */
+    }
+  }
+
+  return { reachable: false, url: serverUrl };
 }
 
 /* ============================ ANFRAGEN ============================ */
@@ -114,27 +172,43 @@ async function api(path, options = {}) {
 
 const itemsUrl = (params) => `/Users/${state.userId}/Items?${new URLSearchParams(params)}`;
 
-async function checkServerReachability(serverUrl) {
-  for (const endpoint of [`${serverUrl}/System/Info/Public`, `${serverUrl}/System/Info`, `${serverUrl}/`]) {
-    try {
-      const response = await fetch(endpoint, { method: 'GET' });
-      if (response.ok || response.status === 401 || response.status === 403) return true;
-    } catch (error) {
-      /* nächster Endpunkt */
-    }
+/* Sucht die Adresse, unter der der Server wirklich antwortet.
+
+   Zuerst wie angegeben. Schlägt das bei https fehl, noch einmal über
+   http: ein Heimserver ohne TLS ist der häufigste Fall, und
+   normalizeServerUrl() rät bei fehlendem Schema bewusst zu https. */
+async function resolveServerUrl(serverUrl) {
+  const direct = await probeServer(serverUrl);
+  if (direct.reachable) return direct;
+
+  if (/^https:\/\//i.test(serverUrl)) {
+    const plain = await probeServer(serverUrl.replace(/^https:/i, 'http:'));
+    if (plain.reachable) return plain;
   }
-  return false;
+
+  return { reachable: false, url: serverUrl };
 }
 
+/* Bleibt für Aufrufer erhalten, die nur ja/nein wissen wollen. */
+async function checkServerReachability(serverUrl) {
+  const result = await resolveServerUrl(serverUrl);
+  return result.reachable;
+}
+
+/* Gibt die tatsächlich gültige Adresse mit zurück: Wurde umgeleitet,
+   muss der Aufrufer ab jetzt diese verwenden — sonst läuft jede
+   weitere Anfrage wieder in dieselbe Umleitung. */
 async function authenticate(serverUrl, username, password) {
-  const reachable = await checkServerReachability(serverUrl);
-  if (!reachable) {
+  const resolved = await resolveServerUrl(serverUrl);
+  if (!resolved.reachable) {
     throw new Error(
       typeof t === 'function'
         ? t('auth.serverUnreachable', { url: serverUrl })
         : `Server unreachable: ${serverUrl}`
     );
   }
+
+  serverUrl = resolved.url;
 
   const response = await fetch(`${serverUrl}/Users/AuthenticateByName`, {
     method: 'POST',
@@ -168,7 +242,10 @@ async function authenticate(serverUrl, username, password) {
   return {
     accessToken: data.AccessToken,
     userId: data.User.Id,
-    userName: data.User.Name
+    userName: data.User.Name,
+    /* Die Adresse, die wirklich geantwortet hat — kann sich von der
+       eingegebenen unterscheiden (Schema ergänzt oder umgeleitet). */
+    serverUrl
   };
 }
 

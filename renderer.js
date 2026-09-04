@@ -85,9 +85,13 @@ function buildAuthHeader(token) {
   return `MediaBrowser ${parts.join(', ')}`;
 }
 
+/* Ergänzt ein fehlendes Schema — https zuerst, siehe core/api.js:
+   bei http→https-Umleitung verwirft der Browser den
+   Authorization-Header, und Jellyfin meldet dann irreführend
+   "400 Error processing request". */
 function normalizeServerUrl(rawUrl) {
   let url = rawUrl.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   return url;
 }
 
@@ -323,25 +327,73 @@ function showError(message, retryFn) {
   el.viewRoot.appendChild(box);
 }
 
-async function checkServerReachability(serverUrl) {
-  for (const endpoint of [`${serverUrl}/System/Info/Public`, `${serverUrl}/System/Info`, `${serverUrl}/`]) {
+/* Siehe core/api.js — dort steht die ausführliche Begründung.
+   Kurz: ohne Umleitung prüfen, damit ein Schema-Wechsel hier
+   auffällt und nicht erst beim Login den Header kostet. */
+async function probeServer(serverUrl) {
+  for (const path of ['/System/Info/Public', '/System/Info', '/']) {
     try {
-      const response = await fetch(endpoint, { method: 'GET' });
-      if (response.ok || response.status === 401 || response.status === 403) return true;
+      const response = await fetch(`${serverUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual'
+      });
+
+      if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+        const target = response.headers.get('Location');
+        if (target) {
+          try {
+            const redirected = new URL(target, `${serverUrl}${path}`);
+            return { reachable: true, url: redirected.origin };
+          } catch (error) {
+            /* Unbrauchbares Location-Feld */
+          }
+        }
+        return {
+          reachable: true,
+          url: serverUrl.startsWith('http://')
+            ? serverUrl.replace(/^http:/i, 'https:')
+            : serverUrl
+        };
+      }
+
+      if (response.ok || response.status === 401 || response.status === 403) {
+        return { reachable: true, url: serverUrl };
+      }
     } catch (error) {
-      /* nächster Endpunkt */
+      /* nächster Pfad */
     }
   }
-  return false;
+
+  return { reachable: false, url: serverUrl };
+}
+
+async function resolveServerUrl(serverUrl) {
+  const direct = await probeServer(serverUrl);
+  if (direct.reachable) return direct;
+
+  if (/^https:\/\//i.test(serverUrl)) {
+    const plain = await probeServer(serverUrl.replace(/^https:/i, 'http:'));
+    if (plain.reachable) return plain;
+  }
+
+  return { reachable: false, url: serverUrl };
+}
+
+async function checkServerReachability(serverUrl) {
+  const result = await resolveServerUrl(serverUrl);
+  return result.reachable;
 }
 
 async function authenticate(serverUrl, username, password) {
-  const isReachable = await checkServerReachability(serverUrl);
-  if (!isReachable) {
+  const resolved = await resolveServerUrl(serverUrl);
+  if (!resolved.reachable) {
     throw new Error(
       t('auth.serverUnreachable', { url: serverUrl })
     );
   }
+
+  /* Ab hier die Adresse, die geantwortet hat — nicht die eingegebene. */
+  serverUrl = resolved.url;
 
   const response = await fetch(`${serverUrl}/Users/AuthenticateByName`, {
     method: 'POST',
@@ -366,7 +418,8 @@ async function authenticate(serverUrl, username, password) {
     throw new Error(t('auth.badResponse'));
   }
 
-  return { accessToken: data.AccessToken, userId: data.User.Id, userName: data.User.Name };
+  /* serverUrl mitgeben: kann sich durch Umleitung geändert haben. */
+  return { accessToken: data.AccessToken, userId: data.User.Id, userName: data.User.Name, serverUrl };
 }
 
 const itemsUrl = (params) => `/Users/${state.userId}/Items?${new URLSearchParams(params)}`;
@@ -2367,7 +2420,10 @@ el.connectForm.addEventListener('submit', async (event) => {
   try {
     const auth = await authenticate(serverUrl, username, password);
 
-    state.serverUrl = serverUrl;
+    /* Die Adresse, die geantwortet hat — bei Umleitung nicht die
+       eingegebene, sonst verliert jede Anfrage ihren Header. */
+    const activeUrl = auth.serverUrl || serverUrl;
+    state.serverUrl = activeUrl;
     state.token = auth.accessToken;
     state.userId = auth.userId;
     state.username = auth.userName;
@@ -2375,7 +2431,7 @@ el.connectForm.addEventListener('submit', async (event) => {
     if (el.rememberMe.checked) {
       try {
         localStorage.setItem('jf-session', JSON.stringify({
-          serverUrl,
+          serverUrl: activeUrl,
           token: auth.accessToken,
           userId: auth.userId,
           username: auth.userName
