@@ -118,6 +118,53 @@ check('Entpackter Ordner wird NICHT hochgeladen',
 check('Fehlende Dateien fallen auf',
   upload?.with?.['if-no-files-found'] === 'error');
 
+/* ---------- Alles, was die CI braucht, muss im Repo liegen ----------
+
+   Ein Eintrag "tools/" in der .gitignore hat einmal alle neuen
+   Werkzeuge verschluckt — lokal lief alles, in der CI fehlte
+   build-mobile.js. Der Fehler war lautlos: git add meldet nichts,
+   wenn eine Datei ignoriert wird. */
+
+const { execSync } = require('child_process');
+
+let trackedFiles = [];
+try {
+  trackedFiles = execSync('git ls-files', { encoding: 'utf8', cwd: ROOT }).split('\n');
+  // Auch schon vorgemerkte Dateien zaehlen als vorhanden
+  const staged = execSync('git diff --cached --name-only', { encoding: 'utf8', cwd: ROOT }).split('\n');
+  trackedFiles.push(...staged);
+} catch (error) {
+  check('git-Dateiliste lesbar', false, error.message);
+}
+
+const tracked = new Set(trackedFiles.filter(Boolean));
+
+/* Jede Datei, die ein npm-Skript aufruft, muss im Repo sein */
+const scriptFiles = new Set();
+Object.values(pkg.scripts || {}).forEach((cmd) => {
+  (cmd.match(/tools\/[\w.-]+\.js/g) || []).forEach((f) => scriptFiles.add(f));
+});
+
+const untracked = [...scriptFiles].filter(
+  (f) => fs.existsSync(path.join(ROOT, f)) && !tracked.has(f)
+);
+
+check('Alle Skript-Dateien sind im Repo', untracked.length === 0,
+  untracked.length ? 'FEHLT: ' + untracked.join(', ') : `${scriptFiles.size} geprüft`);
+
+/* Die vom Workflow aufgerufenen Skripte müssen existieren */
+const workflowScripts = ['mobile:build', 'build'];
+workflowScripts.forEach((name) => {
+  check(`npm-Skript "${name}" vorhanden`, Boolean(pkg.scripts?.[name]),
+    pkg.scripts?.[name] || 'fehlt');
+});
+
+/* Und die .gitignore darf tools/ nicht ausschließen */
+const gitignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+check('.gitignore schließt tools/ nicht aus',
+  !/^tools\/?\s*$/m.test(gitignore),
+  'sonst fehlen Testwerkzeuge und Build-Skripte in der CI');
+
 /* ---------- Android-Job ---------- */
 
 const android = doc.jobs?.android;
