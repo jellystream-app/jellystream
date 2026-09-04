@@ -135,6 +135,12 @@ app.whenReady().then(async () => {
       const out = [];
       const check = (name, ok, detail) => out.push({ name, ok: Boolean(ok), detail: detail || '' });
 
+      /* Eigenes settle: dieser Block laeuft im Renderer, das settle
+         des Testskripts liegt in Node und ist hier nicht sichtbar.
+         Ohne diese Zeile bricht der Block beim ersten Aufruf ab —
+         still, denn das await loeste dann nie auf und der Test hing. */
+      const settle = (ms) => new Promise((r) => setTimeout(r, ms));
+
       state.serverUrl = ${JSON.stringify(origin)};
       state.token = 'testtoken';
       state.userId = 'u1';
