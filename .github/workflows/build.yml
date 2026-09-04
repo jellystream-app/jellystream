@@ -65,10 +65,14 @@ jobs:
           # sonst den auslösenden Commit.
           ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
+      # Node 22, weil @capacitor/cli nichts Älteres akzeptiert
+      # (engines: >=22.0.0) und hart abbricht. Beide Jobs laufen
+      # bewusst auf derselben Fassung — sonst baut CI gegen eine
+      # andere Grundlage als der Android-Job.
       - name: Node einrichten
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Abhängigkeiten installieren
@@ -126,10 +130,14 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
+      # Node 22: @capacitor/cli verlangt es (engines: >=22.0.0) und
+      # bricht sonst mit "[fatal] The Capacitor CLI requires NodeJS
+      # >=22.0.0" ab — erst beim `cap add` weiter unten, nicht schon
+      # bei `npm ci`, denn ohne engine-strict warnt npm nur.
       - name: Node einrichten
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # Android verlangt JDK 17; das mitgelieferte JDK 8 genügt nicht.
