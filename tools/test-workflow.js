@@ -173,11 +173,12 @@ check('Android-Job vorhanden', Boolean(android));
 const aSteps = android?.steps || [];
 const aNames = aSteps.map((s) => s.name || s.uses || '');
 
-/* JDK 17: Android baut mit dem mitgelieferten JDK 8 nicht. */
+/* Android baut mit dem mitgelieferten JDK 8 nicht. Wie neu es genau
+   sein muss, steht nicht hier, sondern wird weiter unten aus den
+   Gradle-Dateien hergeleitet — eine feste Zahl an dieser Stelle war
+   schon einmal still veraltet, als Capacitor auf Java 21 zog. */
 const java = aSteps.find((s) => (s.uses || '').includes('setup-java'));
 check('JDK wird eingerichtet', Boolean(java));
-check('JDK 17 oder neuer', Number(java?.with?.['java-version']) >= 17,
-  String(java?.with?.['java-version']));
 
 check('Android-SDK wird eingerichtet',
   aSteps.some((s) => (s.uses || '').includes('setup-android')));
@@ -307,6 +308,61 @@ if (required > 0) {
 const distinct = [...new Set(nodeVersions.map((n) => n.version))];
 check('Alle Jobs nutzen dieselbe Node-Fassung', distinct.length === 1,
   distinct.join(' vs. '));
+
+/* ---------- JDK gegen das, worauf Capacitor uebersetzt ----------
+
+   Capacitor 8 schreibt JavaVersion.VERSION_21 in die erzeugte
+   app/capacitor.build.gradle und fuehrt dieselbe Fassung fest im
+   Modul :capacitor-android unter node_modules. Beides ist nicht
+   einstellbar. Ist das JDK des Laeufers aelter, bricht Gradle mit
+   "invalid source release" ab — erst nach SDK-Einrichtung und
+   Installation, also spaet.                                        */
+
+let jdk = null;
+Object.values(doc.jobs || {}).forEach((job) => {
+  (job.steps || []).forEach((step) => {
+    if (String(step.uses || '').startsWith('actions/setup-java')) {
+      jdk = Number(step.with?.['java-version']);
+    }
+  });
+});
+
+check('Android-Job legt ein JDK fest', Number.isFinite(jdk), String(jdk));
+
+/* Hoechste JavaVersion aus allen Gradle-Dateien lesen, die den Build
+   wirklich beeinflussen — auch der aus node_modules. */
+const gradleFiles = [
+  path.join(ROOT, 'android', 'app', 'capacitor.build.gradle'),
+  path.join(ROOT, 'android', 'capacitor-cordova-android-plugins', 'build.gradle'),
+  path.join(ROOT, 'node_modules', '@capacitor', 'android', 'capacitor', 'build.gradle'),
+];
+
+let javaNeeded = 0;
+let javaFrom = '';
+gradleFiles.forEach((f) => {
+  let text;
+  try { text = fs.readFileSync(f, 'utf8'); } catch { return; }
+
+  const found = text.match(/JavaVersion\.VERSION_(\d+)/g) || [];
+  found.forEach((m) => {
+    const major = Number(m.replace('JavaVersion.VERSION_', ''));
+    if (major > javaNeeded) {
+      javaNeeded = major;
+      javaFrom = path.relative(ROOT, f).replace(/\\/g, '/');
+    }
+  });
+});
+
+if (javaNeeded > 0 && Number.isFinite(jdk)) {
+  check('JDK im Workflow passt zu Capacitors Java-Fassung',
+    jdk >= javaNeeded,
+    jdk >= javaNeeded
+      ? `JDK ${jdk} deckt VERSION_${javaNeeded} (${javaFrom})`
+      : `${javaFrom} uebersetzt auf ${javaNeeded}, Workflow nutzt JDK ${jdk}`);
+} else {
+  check('JDK im Workflow passt zu Capacitors Java-Fassung', true,
+    'keine JavaVersion gefunden (android/ oder node_modules fehlt?)');
+}
 
 results.forEach((r) => {
   console.log(`${r.ok ? 'OK  ' : 'FAIL'}  ${r.name}${r.detail ? '  — ' + r.detail : ''}`);

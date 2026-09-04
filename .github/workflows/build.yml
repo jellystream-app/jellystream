@@ -140,12 +140,18 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Android verlangt JDK 17; das mitgelieferte JDK 8 genügt nicht.
+      # JDK 21, weil Capacitor 8 auf Java 21 übersetzt. Das steht nicht
+      # zur Wahl: die Angabe wird von `cap sync` in
+      # app/capacitor.build.gradle geschrieben ("DO NOT EDIT — GENERATED
+      # EACH TIME") und steckt zusätzlich fest im Gradle-Modul
+      # :capacitor-android unter node_modules. Eine eigene Angabe in
+      # app/build.gradle griffe nur für :app und würde von der
+      # erzeugten Datei ohnehin überschrieben.
       - name: JDK einrichten
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Android-SDK einrichten
         uses: android-actions/setup-android@v3
