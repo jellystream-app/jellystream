@@ -118,6 +118,54 @@ check('Entpackter Ordner wird NICHT hochgeladen',
 check('Fehlende Dateien fallen auf',
   upload?.with?.['if-no-files-found'] === 'error');
 
+/* ---------- Android-Job ---------- */
+
+const android = doc.jobs?.android;
+check('Android-Job vorhanden', Boolean(android));
+
+const aSteps = android?.steps || [];
+const aNames = aSteps.map((s) => s.name || s.uses || '');
+
+/* JDK 17: Android baut mit dem mitgelieferten JDK 8 nicht. */
+const java = aSteps.find((s) => (s.uses || '').includes('setup-java'));
+check('JDK wird eingerichtet', Boolean(java));
+check('JDK 17 oder neuer', Number(java?.with?.['java-version']) >= 17,
+  String(java?.with?.['java-version']));
+
+check('Android-SDK wird eingerichtet',
+  aSteps.some((s) => (s.uses || '').includes('setup-android')));
+
+/* Reihenfolge: erst www/ bauen, dann synchronisieren, dann Gradle */
+const prepIdx = aNames.findIndex((n) => /Web-Dateien/i.test(n));
+const syncIdx = aNames.findIndex((n) => /Android-Projekt/i.test(n));
+const apkIdx = aNames.findIndex((n) => /APK bauen/i.test(n));
+
+check('www wird vor dem Synchronisieren gebaut',
+  prepIdx >= 0 && prepIdx < syncIdx, `${prepIdx} < ${syncIdx}`);
+check('Gradle läuft zuletzt', apkIdx > syncIdx, `${apkIdx} > ${syncIdx}`);
+
+const apkUpload = aSteps.find((s) => (s.uses || '').includes('upload-artifact'));
+check('APK wird hochgeladen', /\.apk/.test(String(apkUpload?.with?.path || '')),
+  String(apkUpload?.with?.path || ''));
+
+/* Die nötigen npm-Skripte müssen es geben */
+check('npm run mobile:build existiert', Boolean(pkg.scripts?.['mobile:build']),
+  pkg.scripts?.['mobile:build'] || 'fehlt');
+
+/* Capacitor-Konfiguration */
+const capConfig = path.join(ROOT, 'capacitor.config.json');
+check('capacitor.config.json vorhanden', fs.existsSync(capConfig));
+
+if (fs.existsSync(capConfig)) {
+  const cap = JSON.parse(fs.readFileSync(capConfig, 'utf8'));
+  check('webDir zeigt auf www', cap.webDir === 'www', cap.webDir);
+  check('appId gesetzt', /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(cap.appId || ''), cap.appId);
+  /* Jellyfin läuft im Heimnetz meist über http — ohne diese
+     Erlaubnis blockiert Android die Verbindung stillschweigend. */
+  check('http-Verbindungen erlaubt', cap.android?.allowMixedContent === true,
+    'sonst scheitert der Zugriff auf http://-Server');
+}
+
 /* ---------- Release-Job ---------- */
 
 const release = doc.jobs?.release;

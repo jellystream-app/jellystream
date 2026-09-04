@@ -124,6 +124,53 @@ npm run test:updater
 
 Im Entwicklungslauf (`npm start`) sind Updates abgeschaltet.
 
+## Mobile App (Android)
+
+Die App teilt sich mit dem Desktop den **Kern**, hat aber eine eigene
+Oberfläche — auf einem Telefon ist die Desktop-Fassung nicht bedienbar
+(gemessen: 34 px hohe Knöpfe, 1,4 Karten nebeneinander).
+
+```
+core/       gemeinsam, kennt kein DOM
+  api.js       Anfragen, Anmeldung, Bilder, Zeitformate
+  i18n.js      Übersetzungen
+  playback.js  Codec-Aushandlung
+desktop     index.html + renderer.js, player.js, settings.js, offline.js
+mobile/     index.html + mobile.js, player.js, settings.js, mobile.css
+```
+
+Eine neue Funktion entsteht **einmal** im Kern; nur ihre Darstellung
+steht zweimal — und die soll sich unterscheiden. `npm run test:core`
+wacht darüber, dass kein DOM-Zugriff in den Kern zurückwandert.
+
+### Lokal bauen
+
+```bash
+npm run mobile:build    # stellt www/ zusammen
+npm run mobile:sync     # dazu: cap sync android
+```
+
+Für die APK brauchst du **JDK 17** und das Android-SDK. Ohne beides
+baut GitHub Actions sie bei jedem Tag — dort ist die Werkzeugkette
+eingerichtet.
+
+```bash
+cd android && ./gradlew assembleDebug
+```
+
+### Was die APK kann
+
+Wiedergabe, Suche, Bibliotheken, Übersetzungen und die
+Codec-Aushandlung laufen wie auf dem Desktop — es ist derselbe Kern.
+
+**Offline-Downloads fehlen noch**: sie brauchen `@capacitor/filesystem`
+statt des Electron-Main-Process. Die Oberfläche zeigt dort vorerst
+einen Hinweis.
+
+Die APK ist **unsigniert** — zum Selbstinstallieren genügt das
+(„Unbekannte Quellen" erlauben). Für den Play Store wäre ein
+Signaturschlüssel als Repository-Geheimnis nötig.
+
 ## Übersetzen
 
 Eine Übersetzung ist eine einzelne JSON-Datei — mehr braucht es nicht.
