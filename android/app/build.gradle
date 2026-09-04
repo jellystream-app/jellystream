@@ -16,10 +16,35 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /* Signierung für die veröffentlichte APK.
+
+       Ohne eigenen Schlüssel signiert Gradle mit einem automatisch
+       erzeugten Debug-Zertifikat ("CN=Android Debug"). Solche Pakete
+       lehnt Android beim Installieren ab — der Paketmanager meldet
+       nur "App nicht installiert", ohne Grund.
+
+       Die Werte kommen aus Umgebungsvariablen, damit weder Schlüssel
+       noch Passwort im Repo stehen. In der CI füllt sie der Workflow
+       aus GitHub-Secrets. Fehlen sie (lokaler Bau), bleibt
+       signingConfig null und Gradle nimmt wieder den Debug-Schlüssel:
+       zum Ausprobieren genügt das. */
+    signingConfigs {
+        release {
+            def store = System.getenv('JELLYSTREAM_KEYSTORE')
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('JELLYSTREAM_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('JELLYSTREAM_KEY_ALIAS')
+                keyPassword System.getenv('JELLYSTREAM_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig System.getenv('JELLYSTREAM_KEYSTORE') ? signingConfigs.release : null
         }
     }
 }

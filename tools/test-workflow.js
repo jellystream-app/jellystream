@@ -364,6 +364,96 @@ if (javaNeeded > 0 && Number.isFinite(jdk)) {
     'keine JavaVersion gefunden (android/ oder node_modules fehlt?)');
 }
 
+/* ---------- Android: Installierbarkeit ----------
+
+   Eine Debug-APK sieht fertig aus, laesst sich aber nicht
+   installieren: sie traegt android:debuggable und ein
+   Wegwerf-Zertifikat. Android meldet dann nur "App nicht
+   installiert", ohne Grund zu nennen — der Fehler faellt erst auf
+   dem Telefon auf. Deshalb hier. */
+
+const androidJob = doc.jobs?.android;
+const androidSteps = androidJob?.steps || [];
+const stepText = JSON.stringify(androidSteps);
+
+check('Android baut assembleRelease, nicht assembleDebug',
+  stepText.includes('assembleRelease') && !stepText.includes('assembleDebug'),
+  stepText.includes('assembleDebug')
+    ? 'assembleDebug erzeugt eine nicht installierbare APK'
+    : 'assembleRelease');
+
+check('Signaturschluessel kommt aus den Secrets',
+  stepText.includes('ANDROID_KEYSTORE_BASE64'),
+  'secrets.ANDROID_KEYSTORE_BASE64');
+
+check('Die Signatur wird vor dem Hochladen geprueft',
+  stepText.includes('apksigner') && stepText.includes('CN=Android Debug'),
+  'Schritt "Signatur pruefen"');
+
+/* Der Schluessel darf nie im Repo landen. */
+const keystoreInRepo = ['jks', 'keystore', 'p12'].some((ext) => {
+  try {
+    return fs.readdirSync(ROOT).some((f) => f.toLowerCase().endsWith('.' + ext));
+  } catch { return false; }
+});
+check('Kein Signaturschluessel im Repo', !keystoreInRepo,
+  keystoreInRepo ? 'Schluesseldatei im Projektordner gefunden' : 'sauber');
+
+/* ---------- Android: Startsymbol ----------
+
+   Das Symbol kam von `cap add` und zeigte Capacitors Standard —
+   den gruenen Roboter. Wer es aus Versehen wieder erzeugen laesst,
+   soll das hier merken, nicht auf dem Startbildschirm. */
+
+const RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+
+function readIf(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch { return ''; }
+}
+
+const fgVector = readIf(path.join(RES, 'drawable', 'ic_launcher_foreground.xml'));
+
+check('Startsymbol stammt aus logo.svg',
+  fgVector.includes('make-android-icons.js'),
+  fgVector ? 'eigener Vektor' : 'drawable/ic_launcher_foreground.xml fehlt');
+
+/* Capacitors Vorlage bringt eine Datei unter drawable-v24 mit. Sie
+   wuerde die eigene in drawable/ auf Android 7+ verdecken. */
+check('Keine alte Vektorfassung unter drawable-v24',
+  !fs.existsSync(path.join(RES, 'drawable-v24', 'ic_launcher_foreground.xml')),
+  'drawable-v24 verdeckt drawable/');
+
+/* Bei runder Maske bleibt nur ein Kreis von 33dp Radius sichtbar.
+   Das Motiv misst ab Mitte 11 x 7 Einheiten (inkl. halber
+   Strichbreite), die Halbdiagonale also 13.04 — mehr als Faktor
+   2.53 schneidet der Launcher an. */
+const scaleMatch = fgVector.match(/android:scaleX="([\d.]+)"/);
+if (scaleMatch) {
+  const scale = Number(scaleMatch[1]);
+  const corner = Math.hypot(11 * scale, 7 * scale);
+  check('Motiv bleibt in der Sicherheitszone',
+    corner <= 33,
+    `Ecke bei ${corner.toFixed(1)}dp (Grenze 33dp, Maßstab ${scale})`);
+} else {
+  check('Motiv bleibt in der Sicherheitszone', false, 'kein scaleX im Vektor gefunden');
+}
+
+/* Die PNG sind fuer Android 7 noetig: dort versteht der Launcher
+   noch keine adaptiven Symbole. */
+const densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
+const missing = densities.filter((d) =>
+  !fs.existsSync(path.join(RES, `mipmap-${d}`, 'ic_launcher.png')) ||
+  !fs.existsSync(path.join(RES, `mipmap-${d}`, 'ic_launcher_round.png')));
+check('PNG-Symbole fuer Android 7 vollstaendig', missing.length === 0,
+  missing.length ? 'fehlt in: ' + missing.join(', ') : densities.length + ' Aufloesungen');
+
+/* Der Hintergrund war eine weisse Farbflaeche; jetzt ist es der
+   Verlauf aus logo.svg. Bliebe die Farbe liegen, gewaenne sie. */
+check('Hintergrund ist der Verlauf, keine Farbflaeche',
+  !fs.existsSync(path.join(RES, 'values', 'ic_launcher_background.xml')) &&
+  readIf(path.join(RES, 'drawable', 'ic_launcher_background.xml')).includes('gradient'),
+  'drawable/ic_launcher_background.xml');
+
 results.forEach((r) => {
   console.log(`${r.ok ? 'OK  ' : 'FAIL'}  ${r.name}${r.detail ? '  — ' + r.detail : ''}`);
 });
