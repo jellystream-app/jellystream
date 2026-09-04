@@ -1,6 +1,6 @@
 {
   "name": "jellystream",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Jellystream — desktop client for Jellyfin media servers",
   "main": "main.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "dev": "electron .",
     "icon": "electron tools/make-icon.js",
     "dist": "electron-builder --win --publish never",
-    "test": "npm run test:syntax && npm run test:core && npm run test:workflow && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:login && npm run test:playback && npm run test:i18n && npm run test:sync && npm run test:updater && npm run test:fixes && npm run test:mobile && npm run test:www && npm run test:smoke",
+    "test": "npm run test:syntax && npm run test:core && npm run test:workflow && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:login && npm run test:playback && npm run test:music && npm run test:i18n && npm run test:sync && npm run test:updater && npm run test:fixes && npm run test:mobile && npm run test:www && npm run test:smoke",
     "test:syntax": "node --check main.js && node --check updater.js && node --check downloads.js && node --check languages.js && node --check core/i18n.js && node --check i18n-dom.js && node --check core/playback.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check settings.js && node --check preload.js",
     "test:downloads": "electron tools/test-downloads.js",
     "test:ui": "electron tools/test-ui.js",
@@ -27,7 +27,8 @@
     "test:mobile": "electron tools/test-mobile.js",
     "mobile:build": "node tools/build-mobile.js",
     "mobile:sync": "npm run mobile:build && cap sync android",
-    "test:www": "electron tools/test-www.js"
+    "test:www": "electron tools/test-www.js",
+    "test:music": "electron tools/test-music.js"
   },
   "homepage": "https://github.com/jellystream-app/jellystream",
   "repository": {

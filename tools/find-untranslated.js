@@ -25,9 +25,14 @@ const IGNORE = [
   /^[<>\/\s]*$/,                          // HTML-Fragmente ohne Text
   /^[.#][\w-]+$/,                         // CSS-Selektoren
   /^\s*$/,
-  // Jellyfin-Feldlisten für die API — englische Bezeichner, kein UI-Text
-  /^[A-Za-z]+(,[A-Za-z]+)+$/,
-  /^\/?[A-Za-z]+\?$/                      // Endpunktfragmente wie "/Genres?"
+  /* Jellyfin-Feldlisten für die API — englische Bezeichner, kein
+     UI-Text. Auch mit Zeilenumbrüchen und führendem "?Fields=", wie
+     sie in mehrzeiligen Abfragen vorkommen. */
+  /^\??(Fields=)?[A-Za-z]+(,\s*[A-Za-z]+)+$/,
+  /^\/?[A-Za-z]+\?$/,                     // Endpunktfragmente wie "/Genres?"
+  /* Codefragmente aus zerschnittenen Template-Literalen: sie
+     beginnen mit einem Rest wie ": ''}" und sind kein Text. */
+  /^:\s*''\}/
 ];
 
 /* Endungen und Muster, die auf deutschen Text hindeuten. Absichtlich

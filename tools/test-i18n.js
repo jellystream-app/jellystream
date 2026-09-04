@@ -45,9 +45,12 @@ function testNoHardcoded() {
   const match = output.match(/Gesamt: (\d+) Fundstellen/);
   const count = match ? Number(match[1]) : -1;
 
-  /* Vier bekannte Fehlalarme: mehrzeilige API-Feldlisten und
-     Codefragmente, die der Scanner nicht als solche erkennt. */
-  check('Keine hartkodierten Texte im Code', count >= 0 && count <= 4,
+  /* Zwei bekannte Fehlalarme:
+       - eine mehrzeilige API-Feldliste in renderer.js, die der
+         Scanner nicht als solche erkennt
+       - eine throw-Meldung in settings.js, die nur Entwickler sehen
+     Steigt die Zahl, ist echter Text dazugekommen. */
+  check('Keine hartkodierten Texte im Code', count >= 0 && count <= 2,
     count < 0 ? 'Scanner lieferte kein Ergebnis' : `${count} Fundstellen`);
 }
 

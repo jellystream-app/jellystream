@@ -504,6 +504,11 @@
     "genre.title": "Genre: {name}",
     "collection.items": "{count} titles in this collection",
     "nav.collections": "Collections",
-    "update.packageManaged": "Installed through the package manager — updates come from there"
+    "update.packageManaged": "Installed through the package manager — updates come from there",
+    "artist.topTracks": "Popular tracks",
+    "artist.albumCount": "{count} albums",
+    "music.byArtist": "by {artist}",
+    "music.recentlyPlayed": "Recently played",
+    "music.favoriteAlbums": "Favourite albums"
   }
 }

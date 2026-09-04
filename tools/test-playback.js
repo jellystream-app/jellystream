@@ -140,19 +140,33 @@ app.whenReady().then(async () => {
       check('MP4 wird direkt angeboten',
             (direct.Container || '').split(',').includes('mp4'), direct.Container);
 
-      /* HEVC, AC-3 und DTS stehen bewusst DRIN.
-
-         Chromium dekodiert sie zwar nicht, aber sie auszuschliessen
-         hiess, dass der Server ganze Serien umrechnet — und der
-         Umrechnungsweg ist der unzuverlaessigere. Besser: direkt
-         versuchen, und wenn es scheitert, faengt der Rueckfall im
-         Player das ab. Genau das ging in 2.5.0 verloren. */
       // Auf Listeneintraege pruefen, nicht per Regex: "ac3" steckt
       // als Teilkette auch in "eac3" und ergaebe falsche Treffer.
       const vList = (direct.VideoCodec || '').split(',');
       const aList = (direct.AudioCodec || '').split(',');
 
-      check('HEVC wird direkt versucht', vList.includes('hevc'), direct.VideoCodec);
+      /* HEVC darf NICHT als direkt angeboten werden: Chromium
+         dekodiert es nicht (Lizenzgruende). Stuende es im Profil,
+         lieferte der Server die Datei unveraendert und der Player
+         zeigte Schwarz. So fordert er eine Umrechnung an — der Film
+         laeuft, statt zu scheitern. */
+      check('HEVC wird nicht als direkt angeboten',
+            !vList.includes('hevc') && !vList.includes('h265'), direct.VideoCodec);
+
+      // Gegenprobe an der Wirklichkeit statt an einer Annahme
+      const video2 = document.createElement('video');
+      check('HEVC ist tatsaechlich nicht abspielbar',
+            !video2.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"'),
+            'canPlayType: "' + video2.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"') + '"');
+
+      /* AV1 dagegen laeuft und muss direkt angeboten werden —
+         sonst wuerde unnoetig umgerechnet. */
+      check('AV1 wird direkt angeboten', vList.includes('av1'), direct.VideoCodec);
+      check('AV1 ist tatsaechlich abspielbar',
+            video2.canPlayType('video/mp4; codecs="av01.0.05M.08"') === 'probably');
+
+      /* Ton bleibt grosszuegig: das Bild laeuft damit weiterhin
+         direkt, und ob der Ton ankommt, entscheidet der Player. */
       check('AC-3 wird direkt versucht', aList.includes('ac3'), direct.AudioCodec);
       check('DTS wird direkt versucht', aList.includes('dts'), direct.AudioCodec);
 
@@ -185,7 +199,7 @@ app.whenReady().then(async () => {
         { n: 'MKV + H.264 + AC-3', c: 'mkv', v: 'h264', a: 'ac3' },
         { n: 'MKV + H.264 + AAC',  c: 'mkv', v: 'h264', a: 'aac' },
         { n: 'MKV + H.264 + DTS',  c: 'mkv', v: 'h264', a: 'dts' },
-        { n: 'MKV + HEVC + E-AC-3', c: 'mkv', v: 'hevc', a: 'eac3' },
+        
         { n: 'MP4 + H.264 + AAC',  c: 'mp4', v: 'h264', a: 'aac' },
         { n: 'AVI + MPEG-4 + MP3', c: 'avi', v: 'mpeg4', a: 'mp3' }
       ];
