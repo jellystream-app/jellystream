@@ -114,16 +114,86 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Hängt die Pakete beider Plattformen an das Release des Tags.
+  # Die Android-App braucht eine ganz andere Werkzeugkette (JDK,
+  # Android-SDK, Gradle) als die Electron-Ziele — deshalb ein eigener
+  # Job statt eines dritten Matrix-Eintrags.
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Android verlangt JDK 17; das mitgelieferte JDK 8 genügt nicht.
+      - name: JDK einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android-SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      # Stellt www/ zusammen und reicht die Versionsnummer aus der
+      # package.json nach Android durch.
+      - name: Web-Dateien vorbereiten
+        run: npm run mobile:build
+
+      - name: Android-Projekt erzeugen
+        run: |
+          # Das Projekt liegt nicht im Repo (Zwischenstände), also
+          # bei jedem Lauf frisch anlegen.
+          npx cap add android || echo "Projekt bestand bereits"
+          npx cap sync android
+
+      - name: APK bauen
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # Der Dateiname aus Gradle sagt nichts über die Version —
+      # für das Release umbenennen.
+      - name: APK benennen
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p dist-android
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "dist-android/Jellystream-${VERSION}.apk"
+          ls -la dist-android/
+
+      - name: APK hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: jellystream-android
+          path: dist-android/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  # Hängt die Pakete aller Plattformen an das Release des Tags.
   # Existiert noch keines, wird es angelegt.
   release:
-    needs: build
-    # Läuft bei einem Tag-Push, einem veröffentlichten Release und
-    # beim manuellen Lauf, sofern dort ein Tag angegeben wurde.
+    # always(): ein gescheiterter Android-Build soll das Release für
+    # Windows und Linux nicht verhindern. Fehlt latest.yml, bricht der
+    # Job weiter unten trotzdem ab — die ist wirklich unverzichtbar.
+    needs: [build, android]
     if: >-
-      github.event_name == 'release' ||
-      startsWith(github.ref, 'refs/tags/') ||
-      inputs.tag != ''
+      always() && (
+        github.event_name == 'release' ||
+        startsWith(github.ref, 'refs/tags/') ||
+        inputs.tag != ''
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -150,6 +220,12 @@ jobs:
           if [ ! -f release/latest.yml ]; then
             echo "::error::latest.yml fehlt — der Windows-Build ist wohl fehlgeschlagen."
             exit 1
+          fi
+
+          # Die APK fehlt nur, wenn der Android-Job gescheitert ist.
+          # Kein Abbruch: Windows und Linux sollen trotzdem erscheinen.
+          if ! ls release/*.apk >/dev/null 2>&1; then
+            echo "::warning::Keine APK im Release — der Android-Job ist wohl fehlgeschlagen."
           fi
 
       - name: An das Release hängen

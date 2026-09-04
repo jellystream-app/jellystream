@@ -2,7 +2,18 @@ node_modules/
 dist/
 *.log
 .DS_Store
-
+tools/
 # Lokale Werkzeug-Einstellungen, gehören nicht ins Repo
 .claude/
 Thumbs.db
+
+# Capacitor: erzeugte Web-Dateien und Android-Zwischenstände
+www/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/res/xml/config.xml
+*.apk
+*.aab

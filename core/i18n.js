@@ -88,11 +88,51 @@ function detectLanguage(available) {
   return codes.includes('en') ? 'en' : (codes[0] || 'en');
 }
 
+/* Ohne die Electron-Bruecke (mobile App, Browser) liegen die
+   Sprachdateien einfach neben der Seite. Dann per fetch holen. */
+async function fetchLanguageFile(code) {
+  try {
+    const response = await fetch(`language/${encodeURIComponent(code)}.json`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data && data.strings ? data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function fetchLanguageIndex() {
+  try {
+    const response = await fetch('language/index.json');
+    if (!response.ok) return [];
+    const data = await response.json();
+    const list = Array.isArray(data) ? data : (data.languages || []);
+    // Dieselbe Form wie die Bruecke sie liefert
+    return list.map((entry) => ({
+      code: String(entry.code || '').toLowerCase(),
+      name: entry.name || entry.code,
+      nativeName: entry.nativeName || entry.name || entry.code,
+      flag: entry.flag || '',
+      author: entry.author || '',
+      authorUrl: entry.authorUrl || '',
+      version: entry.version || 1,
+      rtl: Boolean(entry.rtl),
+      source: 'builtin',
+      translated: 0,
+      total: 0
+    }));
+  } catch (error) {
+    return [];
+  }
+}
+
 async function loadLanguage(code) {
   const bridge = window.languages;
-  if (!bridge) return false;
 
-  const data = await bridge.get(code).catch(() => null);
+  const data = bridge
+    ? await bridge.get(code).catch(() => null)
+    : await fetchLanguageFile(code);
+
   if (!data || !data.strings) return false;
 
   i18n.code = code;
@@ -105,20 +145,19 @@ async function loadLanguage(code) {
 async function initI18n() {
   const bridge = window.languages;
 
-  if (!bridge) {
-    // Ohne Bruecke (z. B. im Browser geoeffnet) bleibt es bei den Schluesseln
-    i18n.ready = true;
-    return;
-  }
-
+  /* Zwei Wege zur selben Sache: der Desktop fragt den Main-Process,
+     die mobile App liest die Dateien neben sich. Ohne diesen zweiten
+     Weg stuenden auf dem Geraet nur die Schluessel statt der Texte. */
   try {
-    i18n.available = await bridge.list();
+    i18n.available = bridge ? await bridge.list() : await fetchLanguageIndex();
   } catch (error) {
     i18n.available = [];
   }
 
   // Englisch immer als Rueckfallebene laden
-  const english = await bridge.get('en').catch(() => null);
+  const english = bridge
+    ? await bridge.get('en').catch(() => null)
+    : await fetchLanguageFile('en');
   if (english && english.strings) i18n.fallback = english.strings;
 
   const wanted = savedLanguage() || detectLanguage(i18n.available);

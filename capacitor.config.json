@@ -1,0 +1,11 @@
+{
+  "appId": "app.jellystream.mobile",
+  "appName": "Jellystream",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
