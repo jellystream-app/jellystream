@@ -17,3 +17,9 @@ android/app/src/main/assets/public/
 android/app/src/main/res/xml/config.xml
 *.apk
 *.aab
+
+# Signaturschluessel gehoeren niemals ins Repo
+*.jks
+*.keystore
+*.p12
+keystore*.txt
