@@ -28,8 +28,10 @@
         <form id="connect-form" class="m-form" autocomplete="on">
           <label class="m-field">
             <span data-i18n="login.server">Server</span>
-            <input id="server-url" type="url" inputmode="url" value="http://192.168.1.50:8096"
-                   placeholder="http://192.168.1.50:8096" spellcheck="false" required />
+            <!-- Kein vorausgefüllter Wert: Eine fremde Beispiel-Adresse
+                 muss erst gelöscht werden und legt zudem http nahe. -->
+            <input id="server-url" type="url" inputmode="url"
+                   placeholder="jellyfin.example.com" spellcheck="false" required />
           </label>
 
           <label class="m-field">

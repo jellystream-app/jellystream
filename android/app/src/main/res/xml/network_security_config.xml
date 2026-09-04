@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Netzwerk-Regeln für die Android-Fassung.
+
+  Warum es diese Datei gibt: Ab Android 9 (API 28) verbietet die
+  Plattform unverschlüsseltes HTTP grundsätzlich. Unser targetSdk ist
+  36, also gilt die Sperre. Ein typischer Jellyfin-Server im Heimnetz
+  läuft aber auf http://192.168.x.x:8096 — ohne Zertifikat, weil er
+  das Haus nie verlässt. Ohne diese Datei bricht schon der erste
+  fetch() ab, checkServerReachability() bekommt nie eine Antwort und
+  die App meldet "Server nicht erreichbar", obwohl der Server läuft.
+
+  cleartextTrafficPermitted steht auf true, weil die Server-Adresse
+  vom Nutzer kommt: Wir können sie zur Bauzeit nicht kennen und
+  deshalb auch keine Liste erlaubter Hosts pflegen.
+
+  Der user-Trust-Anchor deckt den zweiten Fall ab: Wer seinen Server
+  hinter HTTPS mit eigenem Zertifikat betreibt, hat dessen CA bewusst
+  auf dem Gerät installiert. Ohne diesen Eintrag ignoriert Android
+  diese Entscheidung seit API 24 und die Verbindung scheitert mit
+  demselben Symptom.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

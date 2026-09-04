@@ -553,14 +553,18 @@ $m('connect-form').addEventListener('submit', async (event) => {
 
   try {
     const auth = await authenticate(url, username, password);
-    state.serverUrl = url;
+    /* Nicht die eingegebene Adresse merken, sondern die, die
+       geantwortet hat: Wurde umgeleitet, verlöre sonst jede weitere
+       Anfrage ihren Authorization-Header. */
+    const activeUrl = auth.serverUrl || url;
+    state.serverUrl = activeUrl;
     state.token = auth.accessToken;
     state.userId = auth.userId;
     state.username = auth.userName;
 
     try {
       localStorage.setItem('jf-session', JSON.stringify({
-        serverUrl: url, token: auth.accessToken,
+        serverUrl: activeUrl, token: auth.accessToken,
         userId: auth.userId, username: auth.userName
       }));
     } catch (e) { /* ignorieren */ }

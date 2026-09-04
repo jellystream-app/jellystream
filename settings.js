@@ -454,16 +454,19 @@ $('server-form').addEventListener('submit', async (event) => {
   try {
     const auth = await authenticate(url, username, password);
 
-    let serverName = url;
+    /* Bei Umleitung gilt die aufgelöste Adresse, nicht die eingegebene. */
+    const activeUrl = auth.serverUrl || url;
+
+    let serverName = activeUrl;
     try {
-      const info = await fetch(`${url}/System/Info/Public`).then((r) => r.json());
+      const info = await fetch(`${activeUrl}/System/Info/Public`).then((r) => r.json());
       if (info?.ServerName) serverName = info.ServerName;
     } catch (error) {
       /* Name ist optional */
     }
 
     rememberServer({
-      serverUrl: url,
+      serverUrl: activeUrl,
       serverName,
       userId: auth.userId,
       username: auth.userName,
@@ -472,7 +475,7 @@ $('server-form').addEventListener('submit', async (event) => {
 
     $('server-modal').classList.add('hidden');
     await switchToServer({
-      serverUrl: url, serverName, userId: auth.userId,
+      serverUrl: activeUrl, serverName, userId: auth.userId,
       username: auth.userName, token: auth.accessToken
     });
   } catch (error) {
@@ -1016,11 +1019,16 @@ document.querySelectorAll('.modal').forEach((modal) => {
 let qcTimer = null;
 
 async function startQuickConnect() {
-  const url = normalizeServerUrl($('server-url').value.trim());
-  if (!url) {
+  const entered = normalizeServerUrl($('server-url').value.trim());
+  if (!entered) {
     setAuthError(t('login.enterServer'));
     return;
   }
+
+  /* Erst die gültige Adresse bestimmen: Quick Connect schickt danach
+     Anfragen mit Authorization-Header, die eine Umleitung verlören. */
+  const resolved = await resolveServerUrl(entered);
+  const url = resolved.reachable ? resolved.url : entered;
 
   const box = $('quick-connect-box');
   const codeEl = $('qc-code');
