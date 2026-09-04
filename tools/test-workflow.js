@@ -245,6 +245,69 @@ check('Nutzt den richtigen Tag',
   /github.event.release.tag_name/.test(String(publish?.with?.tag_name || '')),
   String(publish?.with?.tag_name || ''));
 
+/* ---------- Node-Fassung gegen die Forderungen der Pakete ----------
+
+   @capacitor/cli fordert engines.node >=22 und bricht hart ab, wenn
+   der Laeufer aelter ist. Ohne engine-strict warnt `npm ci` dabei
+   nur — der Lauf scheitert also erst Minuten spaeter beim `cap add`.
+   Dieser Test zieht den Abbruch nach vorn: er liest die Forderungen
+   aus node_modules und vergleicht sie mit dem Workflow.            */
+
+const nodeVersions = [];
+Object.values(doc.jobs || {}).forEach((job) => {
+  (job.steps || []).forEach((step) => {
+    if (String(step.uses || '').startsWith('actions/setup-node')) {
+      nodeVersions.push({ job, version: Number(step.with?.['node-version']) });
+    }
+  });
+});
+
+check('Jeder Job legt eine Node-Fassung fest',
+  nodeVersions.length >= 2 && nodeVersions.every((n) => Number.isFinite(n.version)),
+  nodeVersions.map((n) => n.version).join(', '));
+
+/* Hoechste Forderung aller Abhaengigkeiten ermitteln */
+let required = 0;
+let demandedBy = '';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+
+  deps.forEach((dep) => {
+    try {
+      const meta = JSON.parse(fs.readFileSync(
+        path.join(ROOT, 'node_modules', dep, 'package.json'), 'utf8'));
+      const want = meta.engines?.node;
+      if (!want) return;
+
+      // ">=22.0.0" / ">= 12.20.55" -> 22 bzw. 12
+      const major = Number((want.match(/(\d+)/) || [])[1]);
+      if (Number.isFinite(major) && major > required) {
+        required = major;
+        demandedBy = `${dep} (${want})`;
+      }
+    } catch { /* Paket nicht installiert — nicht pruefbar */ }
+  });
+} catch { /* package.json unlesbar: der Test unten faellt dann auf */ }
+
+if (required > 0) {
+  const tooOld = nodeVersions.filter((n) => n.version < required);
+  check('Node im Workflow erfuellt alle engines-Forderungen',
+    tooOld.length === 0,
+    tooOld.length
+      ? `${demandedBy} braucht >=${required}, Workflow nutzt ${tooOld.map((n) => n.version).join('/')}`
+      : `>=${required} gefordert von ${demandedBy}`);
+} else {
+  check('Node im Workflow erfuellt alle engines-Forderungen', true,
+    'keine Forderung gefunden (node_modules fehlt?)');
+}
+
+/* Beide Jobs auf derselben Fassung: sonst baut der eine gegen eine
+   andere Grundlage als der andere. */
+const distinct = [...new Set(nodeVersions.map((n) => n.version))];
+check('Alle Jobs nutzen dieselbe Node-Fassung', distinct.length === 1,
+  distinct.join(' vs. '));
+
 results.forEach((r) => {
   console.log(`${r.ok ? 'OK  ' : 'FAIL'}  ${r.name}${r.detail ? '  — ' + r.detail : ''}`);
 });
