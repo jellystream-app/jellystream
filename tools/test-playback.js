@@ -145,30 +145,28 @@ app.whenReady().then(async () => {
       const vList = (direct.VideoCodec || '').split(',');
       const aList = (direct.AudioCodec || '').split(',');
 
-      /* HEVC darf NICHT als direkt angeboten werden: Chromium
-         dekodiert es nicht (Lizenzgruende). Stuende es im Profil,
-         lieferte der Server die Datei unveraendert und der Player
-         zeigte Schwarz. So fordert er eine Umrechnung an — der Film
-         laeuft, statt zu scheitern. */
-      check('HEVC wird nicht als direkt angeboten',
-            !vList.includes('hevc') && !vList.includes('h265'), direct.VideoCodec);
+      /* Alles wird direkt versucht — auch HEVC, das Chromium nicht
+         dekodiert. Das ist Absicht: der Rueckfall im Player faengt
+         den Fehlschlag ab und laedt umgerechnet neu. So ist der
+         schnelle Weg der Normalfall und der langsame die Ausnahme.
 
-      // Gegenprobe an der Wirklichkeit statt an einer Annahme
-      const video2 = document.createElement('video');
-      check('HEVC ist tatsaechlich nicht abspielbar',
-            !video2.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"'),
-            'canPlayType: "' + video2.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"') + '"');
-
-      /* AV1 dagegen laeuft und muss direkt angeboten werden —
-         sonst wuerde unnoetig umgerechnet. */
-      check('AV1 wird direkt angeboten', vList.includes('av1'), direct.VideoCodec);
-      check('AV1 ist tatsaechlich abspielbar',
-            video2.canPlayType('video/mp4; codecs="av01.0.05M.08"') === 'probably');
-
-      /* Ton bleibt grosszuegig: das Bild laeuft damit weiterhin
-         direkt, und ob der Ton ankommt, entscheidet der Player. */
+         Die Absicherung dafuer wird weiter unten geprueft — ohne
+         sie waere dieses Profil fahrlaessig. */
+      check('HEVC wird direkt versucht', vList.includes('hevc'), direct.VideoCodec);
+      check('AV1 wird direkt versucht', vList.includes('av1'), direct.VideoCodec);
+      check('VC-1 wird direkt versucht', vList.includes('vc1'), direct.VideoCodec);
       check('AC-3 wird direkt versucht', aList.includes('ac3'), direct.AudioCodec);
       check('DTS wird direkt versucht', aList.includes('dts'), direct.AudioCodec);
+      check('TrueHD wird direkt versucht', aList.includes('truehd'), direct.AudioCodec);
+
+      /* Textuntertitel duerfen kein Umrechnen ausloesen: sonst wuerde
+         jede Datei mit ass/ssa-Spur durch den Transcoder laufen. */
+      const encoded = profile.SubtitleProfiles
+        .filter((s) => s.Method === 'Encode').map((s) => s.Format);
+      check('ass/ssa werden nicht eingebrannt',
+            !encoded.includes('ass') && !encoded.includes('ssa'), encoded.join(', '));
+      check('Nur Bilduntertitel werden eingebrannt',
+            encoded.every((f) => /pgs|dvd|dvb|vob/.test(f)), encoded.join(', '));
 
       // Umgekehrt: was drinsteht, muss laufen
       check('H.264 ist im Profil', /h264/.test(direct.VideoCodec));
@@ -313,6 +311,40 @@ app.whenReady().then(async () => {
             forced.DirectPlayProfiles.length + ' Eintraege');
       check('Rueckfall-Profil kann noch umrechnen',
             forced.TranscodingProfiles.length > 0);
+
+      /* Das grosszuegige Profil traegt nur, wenn der Player den
+         Fehlschlag auch wirklich abfaengt. Ohne diese Absicherung
+         bliebe der Nutzer vor schwarzem Bild sitzen — deshalb hier
+         am echten Verhalten geprueft, nicht am Quelltext.
+
+         Ablauf: forceTranscode setzen -> das Profil darf dann nichts
+         mehr direkt erlauben -> der Server MUSS umrechnen. */
+      vpCurrent.forceTranscode = true;
+      const forcedProfile = vpCurrent.forceTranscode
+        ? buildTranscodeOnlyProfile(0)
+        : buildDeviceProfile(0);
+
+      check('Nach dem Rueckfall ist Direktwiedergabe ausgeschlossen',
+            forcedProfile.DirectPlayProfiles.length === 0,
+            forcedProfile.DirectPlayProfiles.length + ' Eintraege');
+
+      vpCurrent.forceTranscode = false;
+      check('Ohne Rueckfall gilt wieder das offene Profil',
+            buildDeviceProfile(0).DirectPlayProfiles.length > 0);
+
+      /* Und der Rueckfall darf nicht haengenbleiben: beim naechsten
+         Titel muss wieder direkt versucht werden. Am Verhalten
+         geprueft — playVideo laeuft bis zur ersten Server-Anfrage
+         und hat den Schalter bis dahin zurueckgesetzt. */
+      vpCurrent.forceTranscode = true;
+      playVideo({ Id: 'neu', Name: 'Anderer Titel', Type: 'Movie' }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 120));
+
+      check('Ein neuer Titel setzt den Rueckfall zurueck',
+            vpCurrent.forceTranscode === false,
+            'sonst bliebe die App im Umrechnen-Modus');
+
+      closeVideo();
 
       /* ============ 3. Zeitachse beim Umrechnen ============ */
 
