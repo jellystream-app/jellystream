@@ -28,8 +28,17 @@
    Rueckfall im Player das ab — als staendig unnoetig umzurechnen. */
 const CONTAINERS = 'mp4,m4v,mkv,webm,mov,avi,ts,m2ts,flv,ogv,3gp';
 
-/* Videoformate, die direkt laufen */
-const VIDEO_CODECS = 'h264,hevc,h265,vp8,vp9,av1,mpeg4,mpeg2video';
+/* Videoformate, die direkt laufen.
+
+   HEVC/H.265 steht hier NICHT: Chromium kann es aus Lizenzgründen
+   nicht dekodieren — gemessen mit tools/probe-hevc.js, canPlayType
+   liefert "" und MediaSource.isTypeSupported false. Stünde es im
+   Profil, lieferte der Server die Datei unverändert aus und der
+   Player zeigte Schwarz. So fordert er stattdessen eine Umrechnung
+   nach H.264 an, und der Film läuft.
+
+   AV1 dagegen wird unterstützt (probably + MSE) und bleibt drin. */
+const VIDEO_CODECS = 'h264,vp8,vp9,av1,mpeg4,mpeg2video';
 
 /* Tonformate. AC-3 und DTS stehen hier bewusst DRIN: das
    Videobild laeuft damit weiterhin direkt, und ob der Ton
