@@ -23,28 +23,34 @@
    trotzdem. Wer sich darauf verlaesst, macht Funktionierendes kaputt.
    ============================================================ */
 
-/* Container, die der Player direkt oeffnet. Bewusst grosszuegig:
-   lieber einmal zu viel direkt versuchen — scheitert es, faengt der
-   Rueckfall im Player das ab — als staendig unnoetig umzurechnen. */
-const CONTAINERS = 'mp4,m4v,mkv,webm,mov,avi,ts,m2ts,flv,ogv,3gp';
+/* Container, die direkt geoeffnet werden — ALLE gaengigen.
+   Kein Aussortieren: was der Player nicht oeffnen kann, faengt der
+   Rueckfall ab. Vorsorgliches Umrechnen kostet dagegen immer. */
+const CONTAINERS =
+  'mp4,m4v,mkv,webm,mov,avi,ts,m2ts,mts,flv,ogv,3gp,3g2,wmv,asf,mpg,mpeg,vob,divx,xvid,f4v,mxf,rm,rmvb';
 
-/* Videoformate, die direkt laufen.
+/* Videoformate, die direkt versucht werden — ALLE.
 
-   HEVC/H.265 steht hier NICHT: Chromium kann es aus Lizenzgründen
-   nicht dekodieren — gemessen mit tools/probe-hevc.js, canPlayType
-   liefert "" und MediaSource.isTypeSupported false. Stünde es im
-   Profil, lieferte der Server die Datei unverändert aus und der
-   Player zeigte Schwarz. So fordert er stattdessen eine Umrechnung
-   nach H.264 an, und der Film läuft.
+   Bewusste Entscheidung: kein Aussortieren nach Codec. Jede
+   Einschränkung hier heißt, dass der Server umrechnet, und das
+   kostet Zeit, Serverlast und Qualität.
 
-   AV1 dagegen wird unterstützt (probably + MSE) und bleibt drin. */
-const VIDEO_CODECS = 'h264,vp8,vp9,av1,mpeg4,mpeg2video';
+   Der Preis: HEVC kann Chromium nicht dekodieren (gemessen,
+   canPlayType liefert ""). Solche Dateien scheitern beim ersten
+   Versuch — aber der Player fängt das ab und lädt sie sofort
+   umgerechnet neu (siehe vpFallbackTried in player.js). Der Nutzer
+   sieht kurz "versuche Umrechnung", dann läuft es.
 
-/* Tonformate. AC-3 und DTS stehen hier bewusst DRIN: das
-   Videobild laeuft damit weiterhin direkt, und ob der Ton
-   ankommt, entscheidet der Player selbst. Sie auszuschliessen
-   hiess, ganze Serien unnoetig umzurechnen. */
-const AUDIO_CODECS = 'aac,mp3,ac3,eac3,dts,flac,opus,vorbis,pcm_s16le,pcm_s24le,mp2,truehd';
+   Damit ist der schnelle Weg der Normalfall und der langsame die
+   Ausnahme — statt umgekehrt. */
+const VIDEO_CODECS =
+  'h264,hevc,h265,vp8,vp9,av1,mpeg4,mpeg2video,mpeg1video,vc1,wmv2,wmv3,theora,dvvideo,prores';
+
+/* Tonformate — ebenfalls alle. Selbst wenn der Ton nicht ankommt,
+   laeuft das Bild; und wenn beides scheitert, greift der Rueckfall. */
+const AUDIO_CODECS =
+  'aac,mp3,ac3,eac3,dts,dtshd,flac,alac,opus,vorbis,pcm_s16le,pcm_s24le,pcm_s32le,' +
+  'mp2,mp1,truehd,wmav2,wmapro,amr_nb,amr_wb,ape,wavpack';
 
 /**
  * Das Profil, das Jellyfin bekommt. Es beschreibt exakt die
@@ -128,14 +134,23 @@ function buildDeviceProfile(maxBitrate = 0) {
        umgerechnet wurden, obwohl sie zuvor direkt liefen. */
     CodecProfiles: [],
 
+    /* Untertitel holt der Player als eigene Spur — auch ass/ssa,
+       die Jellyfin nach VTT wandelt. Sie einbrennen zu lassen hiesse,
+       das ganze Video umzurechnen; so bleibt es bei der
+       Direktwiedergabe und nur der Text wird nachgeladen.
+
+       Nur Bildformate (PGS, VobSub) muss der Server ins Bild rechnen —
+       dafuer gibt es keinen anderen Weg. */
     SubtitleProfiles: [
-      // Textspuren holt der Player selbst als VTT
       { Format: 'vtt', Method: 'External' },
       { Format: 'srt', Method: 'External' },
       { Format: 'subrip', Method: 'External' },
-      { Format: 'ass', Method: 'Encode' },
-      { Format: 'ssa', Method: 'Encode' },
-      // Bild-Untertitel muss der Server ins Bild rechnen
+      { Format: 'ass', Method: 'External' },
+      { Format: 'ssa', Method: 'External' },
+      { Format: 'sub', Method: 'External' },
+      { Format: 'smi', Method: 'External' },
+      { Format: 'mov_text', Method: 'External' },
+      // Bild-Untertitel: nur die brauchen wirklich Umrechnung
       { Format: 'pgssub', Method: 'Encode' },
       { Format: 'dvdsub', Method: 'Encode' },
       { Format: 'dvbsub', Method: 'Encode' },
