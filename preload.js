@@ -57,6 +57,17 @@ contextBridge.exposeInMainWorld('languages', {
   }
 });
 
+// Discord-Praesenz. Nur diese vier Aktionen — der Renderer kann die
+// Verbindung ein- und ausschalten und melden, was laeuft, mehr nicht.
+contextBridge.exposeInMainWorld('discord', {
+  enable: () => ipcRenderer.invoke('discord:enable'),
+  disable: () => ipcRenderer.invoke('discord:disable'),
+  setClientId: (id) => ipcRenderer.invoke('discord:setClientId', id),
+  setActivity: (payload) => ipcRenderer.invoke('discord:setActivity', payload),
+  clear: () => ipcRenderer.invoke('discord:clear'),
+  state: () => ipcRenderer.invoke('discord:state')
+});
+
 // Automatische Updates: Zustand lesen, manuell pruefen, sofort einspielen
 contextBridge.exposeInMainWorld('updater', {
   state: () => ipcRenderer.invoke('updater:state'),

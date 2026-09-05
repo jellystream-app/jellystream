@@ -3,6 +3,7 @@ const path = require('path');
 const downloads = require('./downloads');
 const languages = require('./languages');
 const updater = require('./updater');
+const discord = require('./discord');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -124,6 +125,15 @@ ipcMain.handle('languages:get', (event, code) => languages.get(code));
 ipcMain.handle('languages:sync', (event, options) => languages.sync(options || {}));
 ipcMain.handle('languages:openFolder', () => languages.openFolder());
 
+/* ======================= DISCORD ======================= */
+
+ipcMain.handle('discord:enable', () => discord.enable());
+ipcMain.handle('discord:setClientId', (event, id) => discord.setClientId(id));
+ipcMain.handle('discord:disable', () => discord.disable());
+ipcMain.handle('discord:setActivity', (event, payload) => discord.setActivity(payload));
+ipcMain.handle('discord:clear', () => discord.clear());
+ipcMain.handle('discord:state', () => discord.getState());
+
 /* ======================= UPDATES ======================= */
 
 ipcMain.handle('updater:state', () => updater.getState());
@@ -169,6 +179,8 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   downloads.shutdown();
   updater.stop();
+  // Sonst bleibt die Praesenz in Discord stehen, obwohl die App zu ist
+  discord.shutdown();
 });
 
 app.on('window-all-closed', () => {

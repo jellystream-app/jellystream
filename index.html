@@ -651,6 +651,40 @@
                 </div>
                 <p class="settings-hint" data-i18n="settings.lyricsHint">Negative Werte zeigen den Text früher an.</p>
               </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="settings.discord">Discord-Präsenz</h3>
+                <p class="settings-hint" data-i18n="settings.discordHint">Zeigt in Discord, was gerade läuft. Standardmäßig aus.</p>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.discordEnable">Discord-Präsenz aktivieren</strong>
+                    <small data-i18n="settings.discordEnableHint">Nur wirksam, solange Discord läuft</small>
+                  </span>
+                  <input type="checkbox" id="set-discord" class="switch" />
+                </label>
+                <!-- Startet gesperrt: die Präsenz ist standardmäßig aus,
+                     und ohne sie hat dieser Schalter keine Wirkung. -->
+                <label class="setting-row disabled" id="discord-title-row">
+                  <span>
+                    <strong data-i18n="settings.discordTitle">Titel anzeigen</strong>
+                    <small data-i18n="settings.discordTitleHint">Aus: nur „Sieht etwas" ohne Namen</small>
+                  </span>
+                  <input type="checkbox" id="set-discord-title" class="switch" checked disabled />
+                </label>
+                <div class="setting-stack" id="discord-id-row">
+                  <label for="discord-id" data-i18n="settings.discordId">Application ID</label>
+                  <small class="settings-hint" data-i18n="settings.discordIdHint">Aus dem Discord Developer Portal. Name und Symbol der dort angelegten Anwendung bestimmen, was Discord anzeigt.</small>
+                  <div class="field-input">
+                    <input id="discord-id" type="text" inputmode="numeric" spellcheck="false"
+                           data-i18n-placeholder="settings.discordIdPlaceholder"
+                           placeholder="z. B. 1234567890123456789" />
+                  </div>
+                  <a class="settings-link" id="discord-portal" href="#" target="_blank" rel="noopener noreferrer"
+                     data-i18n="settings.discordPortal">Zum Developer Portal</a>
+                </div>
+
+                <p class="settings-hint" id="discord-status"></p>
+              </section>
             </div>
 
             <!-- ============ UNTERTITEL ============ -->
