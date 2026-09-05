@@ -140,6 +140,101 @@ const CHECK_SVG = `<svg class="check" viewBox="0 0 24 24" fill="none" stroke="cu
 
 const reporting = { video: null, audio: null };
 
+/* ==================== DISCORD-PRAESENZ ====================
+   Haengt an denselben Punkten wie die Server-Meldungen oben:
+   startReporting/stopReporting sind fuer Video *und* Musik der eine
+   Ort, an dem "laeuft an" und "hoert auf" zusammenlaufen. Ein
+   zweiter Mechanismus daneben wuerde frueher oder spaeter davon
+   abweichen.
+
+   Wie beim Reporting gilt: Praesenz ist Nebensache. Faellt sie aus,
+   darf die Wiedergabe davon nichts merken.
+   ========================================================== */
+
+const presence = {
+  current: null, // { item, kind }
+
+  /** Titel und Untertitel fuer die Anzeige in Discord.
+   *
+   *  Ist "Titel anzeigen" aus, bleibt es bei einer allgemeinen
+   *  Zeile — wer die Praesenz will, muss nicht jeden Titel preisgeben. */
+  describe(item, kind) {
+    const watching = kind === 'audio' ? t('discord.listening') : t('discord.watching');
+
+    if (!prefs.discordShowTitle) {
+      return { details: t('discord.generic'), state: '' };
+    }
+
+    // Bei Folgen steht die Serie oben, Staffel und Folge darunter
+    if (item.Type === 'Episode' && item.SeriesName) {
+      const parts = [
+        item.SeasonName,
+        item.IndexNumber != null ? t('detail.episode', { number: item.IndexNumber }) : ''
+      ].filter(Boolean);
+
+      return {
+        details: `${watching} ${item.SeriesName}`,
+        state: parts.join(' · ')
+      };
+    }
+
+    // Musik: Titel oben, Kuenstler und Album darunter
+    if (kind === 'audio') {
+      const artist = item.Artists?.join(', ') || item.AlbumArtist || '';
+      return {
+        details: `${watching} ${item.Name || ''}`.trim(),
+        state: [artist, item.Album].filter(Boolean).join(' · ')
+      };
+    }
+
+    return {
+      details: `${watching} ${item.Name || ''}`.trim(),
+      state: item.ProductionYear ? String(item.ProductionYear) : ''
+    };
+  },
+
+  /** Meldet den aktuellen Zustand. Ohne Bruecke oder abgeschaltet
+   *  passiert nichts — der Aufruf bleibt trotzdem gefahrlos. */
+  send() {
+    if (!prefs.discordRpc || !window.discord) return;
+
+    const entry = this.current;
+    if (!entry) {
+      window.discord.clear();
+      return;
+    }
+
+    const media = entry.kind === 'video' ? vp.video : mp.audio;
+    const { details, state: stateLine } = this.describe(entry.item, entry.kind);
+
+    window.discord.setActivity({
+      kind: entry.kind,
+      details,
+      state: stateLine,
+      paused: Boolean(media.paused),
+      position: reportedPosition(entry.kind, media),
+      duration: Number.isFinite(media.duration) ? media.duration : 0,
+      largeText: prefs.discordShowTitle ? (entry.item.Name || '') : ''
+    });
+  },
+
+  start(item, kind) {
+    this.current = { item, kind };
+    this.send();
+  },
+
+  stop() {
+    this.current = null;
+    if (prefs.discordRpc) window.discord?.clear();
+  },
+
+  /** Nach einem Schalterwechsel in den Einstellungen neu melden. */
+  refresh() {
+    if (!prefs.discordRpc) return;
+    this.send();
+  }
+};
+
 function newPlaySessionId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
@@ -177,6 +272,8 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false, play
     timer: null
   };
   reporting[kind] = session;
+
+  presence.start(item, kind);
 
   reportPlayback('', {
     ItemId: session.itemId,
@@ -218,6 +315,10 @@ function stopReporting(kind, positionSeconds = null) {
   clearInterval(session.timer);
   clearInterval(session.pingTimer);
   reporting[kind] = null;
+
+  // Nur loeschen, wenn wirklich dieser Spieler in der Praesenz stand —
+  // sonst raeumt das Ende eines Videos die gerade gestartete Musik weg
+  if (presence.current?.kind === kind) presence.stop();
 
   const media = kind === 'video' ? vp.video : mp.audio;
   const position = positionSeconds != null ? positionSeconds : reportedPosition(kind, media);
@@ -864,6 +965,7 @@ vp.video.addEventListener('play', () => {
   toggleIcons(vp.play, true);
   vp.centerPlay.classList.remove('show');
   resetIdleTimer();
+  presence.send();
 });
 
 vp.video.addEventListener('pause', () => {
@@ -871,6 +973,7 @@ vp.video.addEventListener('pause', () => {
   vp.centerPlay.classList.add('show');
   vp.ui.classList.remove('idle');
   vp.root.classList.remove('cursor-hidden');
+  presence.send();
 });
 
 vp.video.addEventListener('waiting', () => vp.loading.classList.remove('hidden'));
@@ -1663,6 +1766,7 @@ mp.audio.addEventListener('play', () => {
   toggleIcons(mp.play, true);
   mp.full.classList.add('playing');
   mp.full.classList.remove('paused');
+  presence.send();
 });
 
 mp.audio.addEventListener('pause', () => {
@@ -1670,6 +1774,7 @@ mp.audio.addEventListener('pause', () => {
   toggleIcons(mp.play, false);
   mp.full.classList.remove('playing');
   mp.full.classList.add('paused');
+  presence.send();
 });
 
 mp.audio.addEventListener('loadedmetadata', () => {

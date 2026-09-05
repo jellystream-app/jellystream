@@ -1890,6 +1890,33 @@ video::cue {
 .setting-row strong { display: block; font-size: 0.91rem; font-weight: 600; }
 .setting-row small { display: block; color: var(--muted-2); font-size: 0.79rem; margin-top: 2px; }
 
+/* Eine Zeile, die von einem uebergeordneten Schalter abhaengt.
+   Sichtbar bleiben, aber erkennbar wirkungslos — ein Schalter, der
+   nichts tut, verwirrt sonst mehr, als er nuetzt. */
+.setting-row.disabled { opacity: 0.45; cursor: default; }
+.setting-row.disabled .switch { pointer-events: none; }
+
+/* Ein Feld mit Beschriftung und Erklaerung untereinander — anders als
+   .setting-row, wo Text und Schalter nebeneinander stehen. */
+.setting-stack {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+.setting-stack > label { font-size: 0.91rem; font-weight: 600; }
+.setting-stack .settings-hint { margin: 0; }
+.setting-stack .field-input { margin-top: 2px; }
+.setting-stack.disabled { opacity: 0.45; }
+.setting-stack.disabled input,
+.setting-stack.disabled .settings-link { pointer-events: none; }
+
+.settings-link {
+  align-self: flex-start;
+  font-size: 0.79rem; color: var(--accent);
+  text-decoration: none;
+}
+.settings-link:hover { text-decoration: underline; }
+
 .switch {
   appearance: none; -webkit-appearance: none;
   position: relative;

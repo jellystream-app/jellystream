@@ -17,6 +17,15 @@ const THEMES = [
 
 const ACCENTS = ['#1ecad3', '#00a4dc', '#aa5cc3', '#e5a00d', '#e0303f', '#3ddc97', '#ff7ac6', '#7c8cff'];
 
+/* Die Anwendung von Jellystream im Discord Developer Portal. Ihr Name
+   und ihr Symbol stehen in Discord ueber dem Text — deshalb die eigene
+   und nicht irgendeine.
+
+   Voreingestellt, damit die Praesenz ohne Zutun funktioniert. Wer eine
+   eigene Anwendung nutzen will (anderer Name, anderes Symbol), traegt
+   in den Einstellungen seine ID ein und ueberschreibt diese hier. */
+const DISCORD_APP_ID = '1545880657199108179';
+
 const prefs = {
   theme: 'midnight',
   accent: '#1ecad3',
@@ -47,6 +56,11 @@ const prefs = {
   /* --- Downloads --- */
   dlQuality: 'ask',
   dlDeleteWatched: false,
+
+  /* --- Discord --- */
+  discordRpc: false,        // aus, bis der Nutzer es ausdruecklich will
+  discordShowTitle: true,   // greift nur, wenn discordRpc an ist
+  discordAppId: DISCORD_APP_ID, // eigene ID moeglich, siehe unten
 
   /* --- Eigenes CSS --- */
   customCss: '',
@@ -667,6 +681,12 @@ async function openSettings() {
   $('css-status').textContent = '';
   $('css-theme-name').value = '';
 
+  /* --- Discord --- */
+  $('set-discord').checked = prefs.discordRpc;
+  $('set-discord-title').checked = prefs.discordShowTitle;
+  $('discord-id').value = prefs.discordAppId || '';
+  refreshDiscordSettings();
+
   /* --- Downloads --- */
   refreshDownloadSettings();
 
@@ -797,6 +817,132 @@ $('set-reduce-motion').addEventListener('change', (e) => {
   applyInterface();
   savePrefs();
 });
+
+/* ====================== DISCORD-PRAESENZ ======================
+   Der Titel-Schalter haengt am Grundschalter: ohne Praesenz hat er
+   keine Wirkung, also wird er ausgegraut statt still wirkungslos zu
+   bleiben.
+   ============================================================== */
+
+/** Snowflake: 17 bis 20 Ziffern. Dieselbe Pruefung wie im
+ *  Main-Process — hier nur, um sofort etwas sagen zu koennen,
+ *  statt den Nutzer auf eine stumme Verbindung warten zu lassen. */
+function isValidDiscordId(value) {
+  return /^\d{17,20}$/.test(String(value || '').trim());
+}
+
+/** Welche ID tatsaechlich verwendet wird.
+ *
+ *  Ein leeres Feld heisst nicht "keine Praesenz", sondern "die
+ *  voreingestellte" — sonst haette ein versehentliches Loeschen die
+ *  Anzeige stillschweigend abgeschaltet. */
+function effectiveDiscordId() {
+  const own = String(prefs.discordAppId || '').trim();
+  return own || DISCORD_APP_ID;
+}
+
+async function refreshDiscordSettings() {
+  const status = $('discord-status');
+  const on = prefs.discordRpc;
+
+  // Was ohne Präsenz keine Wirkung hat, wird ausgegraut
+  $('discord-title-row').classList.toggle('disabled', !on);
+  $('set-discord-title').disabled = !on;
+  $('discord-id-row').classList.toggle('disabled', !on);
+  $('discord-id').disabled = !on;
+
+  if (!status) return;
+
+  // Ohne Electron-Bruecke (mobile Fassung) gibt es nichts zu melden
+  if (!window.discord || !on) {
+    status.textContent = '';
+    return;
+  }
+
+  /* Eine eingetragene, aber unbrauchbare ID gehoert bemaengelt.
+     Ein leeres Feld dagegen ist in Ordnung — dann greift die
+     voreingestellte Anwendung. */
+  const own = String(prefs.discordAppId || '').trim();
+  if (own && !isValidDiscordId(own)) {
+    status.textContent = t('settings.discordBadId');
+    return;
+  }
+
+  try {
+    const info = await window.discord.state();
+    if (!info?.configured) status.textContent = t('settings.discordNoId');
+    else if (info.connected) status.textContent = t('settings.discordConnected');
+    else status.textContent = t('settings.discordWaiting');
+  } catch (error) {
+    status.textContent = '';
+  }
+}
+
+$('set-discord').addEventListener('change', async (e) => {
+  prefs.discordRpc = e.target.checked;
+  savePrefs();
+
+  if (prefs.discordRpc) {
+    // Die ID muss vor dem Verbinden stehen — sie steckt im Handshake
+    await window.discord?.setClientId(effectiveDiscordId());
+    await window.discord?.enable();
+  } else {
+    await window.discord?.disable();
+  }
+
+  refreshDiscordSettings();
+
+  // Laeuft gerade etwas, sofort melden statt bis zum naechsten Titel warten
+  if (prefs.discordRpc && typeof presence !== 'undefined') presence.refresh();
+});
+
+$('set-discord-title').addEventListener('change', (e) => {
+  prefs.discordShowTitle = e.target.checked;
+  savePrefs();
+  if (typeof presence !== 'undefined') presence.refresh();
+});
+
+/* Beim Tippen nicht nach jedem Zeichen neu verbinden — sonst baut die
+   App waehrend der Eingabe ein Dutzend Verbindungen auf. */
+let discordIdTimer = null;
+
+$('discord-id').addEventListener('input', (e) => {
+  prefs.discordAppId = e.target.value.trim();
+  clearTimeout(discordIdTimer);
+
+  discordIdTimer = setTimeout(async () => {
+    savePrefs();
+    await window.discord?.setClientId(effectiveDiscordId());
+    refreshDiscordSettings();
+    if (prefs.discordRpc && typeof presence !== 'undefined') presence.refresh();
+  }, 600);
+});
+
+/* Beim Verlassen des Feldes sofort, ohne auf die Entprellung zu warten.
+
+   Der Wert wird hier erneut aus dem Feld gelesen und nicht aus prefs:
+   Wer tippt und binnen der 600 ms weiterklickt, haette sonst noch den
+   vorherigen Stand gespeichert. */
+$('discord-id').addEventListener('change', async (e) => {
+  clearTimeout(discordIdTimer);
+  prefs.discordAppId = e.target.value.trim();
+  savePrefs();
+  await window.discord?.setClientId(effectiveDiscordId());
+  refreshDiscordSettings();
+  if (prefs.discordRpc && typeof presence !== 'undefined') presence.refresh();
+});
+
+/* Beim Start die Verbindung herstellen, wenn der Schalter an war.
+   Ohne das bliebe die Praesenz bis zum ersten Oeffnen der
+   Einstellungen aus, obwohl der Nutzer sie eingeschaltet hat.
+
+   Wird erst unten nach loadPrefs() gerufen — vorher stuenden hier
+   noch die Standardwerte, und der Aufruf ginge immer ins Leere. */
+async function initDiscordPresence() {
+  if (!prefs.discordRpc) return;
+  await window.discord?.setClientId(effectiveDiscordId());
+  window.discord?.enable();
+}
 
 /* ===================== EIGENES CSS ===================== */
 
@@ -1628,13 +1774,16 @@ window.updater?.onEvent((info) => {
    bleiben die Badges sichtbar, aber nicht anklickbar. */
 const PROJECT_LINKS = {
   github: 'https://github.com/jellystream-app/jellystream',
-  kofi: 'https://ko-fi.com/jellystream'
+  kofi: 'https://ko-fi.com/jellystream',
+  // Dort legt der Nutzer die Anwendung an, deren ID er eintraegt
+  discordPortal: 'https://discord.com/developers/applications'
 };
 
 function wireFooterLinks() {
   const entries = [
     ['link-github', PROJECT_LINKS.github],
-    ['link-kofi', PROJECT_LINKS.kofi]
+    ['link-kofi', PROJECT_LINKS.kofi],
+    ['discord-portal', PROJECT_LINKS.discordPortal]
   ];
 
   entries.forEach(([id, url]) => {
@@ -1655,3 +1804,6 @@ function wireFooterLinks() {
 wireFooterLinks();
 
 loadPrefs();
+
+// Erst jetzt — vorher waeren es noch die Standardwerte
+initDiscordPresence();
