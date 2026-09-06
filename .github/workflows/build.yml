@@ -49,7 +49,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            build_cmd: npm run build -- --linux AppImage deb
+            build_cmd: npm run build -- --linux AppImage deb flatpak
             artifact: linux
           - os: windows-latest
             build_cmd: npm run build -- --win nsis
@@ -98,6 +98,30 @@ jobs:
 
           echo "path.txt: $(cat node_modules/electron/path.txt)"
 
+      # Nur unter Linux nötig: electron-builder ruft für das
+      # flatpak-Target extern `flatpak-builder` auf, das auf
+      # ubuntu-latest nicht vorinstalliert ist. Windows braucht das
+      # nie — daher an den os-Zweig der Matrix gebunden, statt einen
+      # eigenen Job dafür anzulegen.
+      - name: Flatpak-Werkzeuge einrichten
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+
+          # Laufzeit, SDK und Electron-BaseApp — alle drei in derselben
+          # Fassung wie in package.json. Weichen sie voneinander ab,
+          # bricht der Bau mitten im Zusammenpacken ab.
+          #
+          # Der Bundler würde Fehlendes zwar selbst nachladen
+          # (auto-install-base), aber dann mitten im Bau; hier steht es
+          # als eigener Schritt im Protokoll, wenn etwas klemmt.
+          flatpak install --user -y --noninteractive flathub \
+            org.freedesktop.Platform//24.08 \
+            org.freedesktop.Sdk//24.08 \
+            org.electronjs.Electron2.BaseApp//24.08
+
       - name: App bauen
         run: ${{ matrix.build_cmd }}
 
@@ -113,6 +137,7 @@ jobs:
             dist/*.exe
             dist/*.AppImage
             dist/*.deb
+            dist/*.flatpak
             dist/*.blockmap
             dist/latest*.yml
           if-no-files-found: error

@@ -51,6 +51,8 @@ const prefs = {
   /* --- Oberfläche --- */
   uiScale: 1,
   cardSize: 'normal',
+  cardShape: 'wide',   // wide | poster — Standard bleibt das Gewohnte
+  navFromLibraries: true,
   reduceMotion: false,
 
   /* --- Downloads --- */
@@ -359,6 +361,46 @@ function forgetServer(serverUrl, userId) {
   renderSettingsServers();
 }
 
+/** Adresse eines Servers kurz: Host und Port, ohne Schema.
+ *
+ *  Das "https://" davor ist bei jedem Eintrag gleich und damit
+ *  Rauschen; unterscheidbar sind zwei Server an Host und Port. */
+function serverHost(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+  } catch (error) {
+    // Keine gültige Adresse — dann lieber das Rohe zeigen als nichts
+    return String(url || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+  }
+}
+
+/** Bildadresse für einen Benutzer, falls er in Jellyfin eines hat.
+ *
+ *  Die Bildmarke wird beim Anmelden mitgespeichert — der Serverwechsel
+ *  darf keine Netzabfrage brauchen, sonst hängt das Menü beim
+ *  Aufklappen. Ohne Marke bleibt es beim Anfangsbuchstaben. */
+function userImageUrl(entry, size = 80) {
+  if (!entry?.imageTag || !entry.userId || !entry.serverUrl) return '';
+  const px = Math.round(size * Math.min(window.devicePixelRatio || 1, 2));
+  return `${entry.serverUrl}/Users/${entry.userId}/Images/Primary`
+    + `?maxHeight=${px}&quality=90&tag=${encodeURIComponent(entry.imageTag)}`;
+}
+
+/** Avatar-Markup: Bild wenn vorhanden, sonst der Anfangsbuchstabe.
+ *
+ *  onerror leert das Bild und zeigt den Buchstaben darunter — ein
+ *  gelöschtes Profilbild hinterlässt sonst ein kaputtes Symbol. */
+function avatarMarkup(entry, size = 80, extraClass = '') {
+  const initial = escapeHtml((entry?.username || '?').charAt(0).toUpperCase());
+  const src = userImageUrl(entry, size);
+
+  return `<span class="user-avatar ${extraClass}">${initial}${
+    src ? `<img src="${escapeHtml(src)}" alt="" loading="lazy"
+                 onerror="this.remove()">` : ''
+  }</span>`;
+}
+
 function renderServerList() {
   const host = $('server-list');
   if (!host) return;
@@ -374,11 +416,19 @@ function renderServerList() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `server-entry ${isActive ? 'active' : ''}`;
+
+    /* Servername UND Adresse: derselbe Name kann auf zwei Maschinen
+       liegen, dann ist die Adresse das Unterscheidende. */
+    const place = [entry.serverName, serverHost(entry.serverUrl)]
+      .filter(Boolean)
+      .filter((part, index, all) => all.indexOf(part) === index)
+      .join(' · ');
+
     btn.innerHTML = `
-      <span class="server-dot"></span>
+      ${avatarMarkup(entry, 34, 'server-face')}
       <span class="server-meta">
         <strong>${escapeHtml(entry.username || t('profile.user'))}</strong>
-        <small>${escapeHtml(entry.serverName || entry.serverUrl)}</small>
+        <small>${escapeHtml(place)}</small>
       </span>`;
     btn.addEventListener('click', () => {
       if (isActive) return closeMenus();
@@ -402,6 +452,8 @@ async function switchToServer(entry) {
   state.token = entry.token;
   state.userId = entry.userId;
   state.username = entry.username;
+  // enterApp() holt es gleich frisch; bis dahin das gemerkte Bild
+  state.userImageTag = entry.imageTag || null;
 
   try {
     // Token prüfen — er kann serverseitig widerrufen sein
@@ -613,10 +665,10 @@ function renderSettingsServers() {
     const row = document.createElement('div');
     row.className = 'settings-server-row';
     row.innerHTML = `
-      <span class="server-dot" style="${isActive ? '' : 'opacity:.4'}"></span>
+      ${avatarMarkup(entry, 32, `server-face ${isActive ? '' : 'dim'}`)}
       <span class="server-meta">
-        <strong>${escapeHtml(entry.serverName || entry.serverUrl)}</strong>
-        <small>${escapeHtml(entry.username)} · ${escapeHtml(entry.serverUrl)}${isActive ? ` · ${escapeHtml(t('server.active'))}` : ''}</small>
+        <strong>${escapeHtml(entry.serverName || serverHost(entry.serverUrl))}</strong>
+        <small>${escapeHtml(entry.username)} · ${escapeHtml(serverHost(entry.serverUrl))}${isActive ? ` · ${escapeHtml(t('server.active'))}` : ''}</small>
       </span>
       <button class="remove-server" type="button" title="${escapeHtml(t('common.remove'))}" aria-label="${escapeHtml(t('server.removeAria'))}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -673,6 +725,8 @@ async function openSettings() {
   $('ui-scale').value = prefs.uiScale;
   $('ui-scale-val').textContent = `${Math.round(prefs.uiScale * 100)} %`;
   $('card-size').value = prefs.cardSize;
+  $('card-shape').value = prefs.cardShape;
+  $('set-nav-libraries').checked = prefs.navFromLibraries;
   $('set-reduce-motion').checked = prefs.reduceMotion;
 
   /* --- Eigenes CSS --- */
@@ -810,6 +864,21 @@ $('card-size').addEventListener('change', (e) => {
   prefs.cardSize = e.target.value;
   applyInterface();
   savePrefs();
+});
+
+/* Kachelform wirkt auf schon gezeichnete Karten nicht rückwirkend —
+   die aktuelle Ansicht wird deshalb neu aufgebaut. */
+$('card-shape').addEventListener('change', (e) => {
+  prefs.cardShape = e.target.value;
+  savePrefs();
+  if (typeof state !== 'undefined' && state.view) navigate(state.view, { push: false });
+});
+
+$('set-nav-libraries').addEventListener('change', (e) => {
+  prefs.navFromLibraries = e.target.checked;
+  savePrefs();
+  // Die Leiste wird neu gebaut; ohne das bliebe die alte stehen
+  if (typeof applyNavMode === 'function') applyNavMode();
 });
 
 $('set-reduce-motion').addEventListener('change', (e) => {
@@ -1692,9 +1761,10 @@ function renderUpdateState(info) {
 
   // Keine Updates moeglich — der Grund entscheidet, was dasteht
   if (info.supported === false) {
-    text.textContent = info.reason === 'packageManaged'
-      ? t('update.packageManaged')
-      : t('update.devMode');
+    text.textContent =
+      info.reason === 'flatpak' ? t('update.flatpak')
+        : info.reason === 'packageManaged' ? t('update.packageManaged')
+        : t('update.devMode');
     dot.className = 'update-dot';
     bar.classList.add('hidden');
     install.classList.add('hidden');

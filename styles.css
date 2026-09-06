@@ -390,7 +390,10 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   border-bottom-color: var(--border);
 }
 
-.nav-left { display: flex; align-items: center; gap: 26px; min-width: 0; }
+/* min-width:0 erlaubt dem Kind zu schrumpfen; ohne das drueckt eine
+   lange Reiterliste die rechte Seite (Suche, Profil) aus dem Fenster —
+   genau das passierte, als die Bibliotheken dazukamen. */
+.nav-left { display: flex; align-items: center; gap: 26px; min-width: 0; flex: 1 1 auto; }
 
 .nav-brand {
   display: flex; align-items: center; gap: 9px;
@@ -410,7 +413,18 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   font-size: 1.06rem; font-weight: 700; letter-spacing: -0.025em;
 }
 
-.nav-links { display: flex; align-items: center; gap: 2px; }
+/* Die Leiste darf die rechte Seite nicht wegschieben — aber das
+   Aufklappmenü hängt unter ihr und muss sichtbar bleiben.
+
+   `overflow: hidden` erschlug beides: Es kappte auch das Menü, das
+   sich dann zwar öffnete, aber unsichtbar blieb. Stattdessen wird gar
+   nicht gekappt; die Reiter dürfen stattdessen schrumpfen (flex-shrink
+   am .nav-btn) und lange Namen kürzen. Was nicht mehr sinnvoll passt,
+   liegt ohnehin im Bibliotheken-Menü. */
+.nav-links {
+  display: flex; align-items: center; gap: 2px;
+  min-width: 0;
+}
 
 .nav-btn {
   display: flex; align-items: center; gap: 7px;
@@ -420,6 +434,24 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   font-size: 0.94rem; font-weight: 500;
   white-space: nowrap;
   transition: color 0.15s var(--ease), background 0.15s var(--ease);
+  /* Bei Platzmangel lieber lange Namen kürzen als die rechte Seite
+     (Suche, Profil) aus dem Fenster drücken. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Der Bibliotheken-Knopf ist der Ausweg für alles, was nicht in die
+   Leiste passt — er darf nie derjenige sein, der weggekürzt wird. */
+#library-toggle { flex-shrink: 0; }
+.nav-links .nav-dropdown { flex-shrink: 0; }
+
+/* Trennt im Bibliotheken-Menü das, was oben schon als Reiter steht,
+   von dem, was es nur hier gibt. */
+.menu-separator {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border);
 }
 .nav-btn svg { width: 16px; height: 16px; opacity: 0.85; transition: transform 0.2s var(--ease); }
 .nav-btn .grid-icon { width: 17px; height: 17px; }
@@ -540,6 +572,24 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   flex-shrink: 0;
 }
 .user-avatar.big { width: 42px; height: 42px; font-size: 1.05rem; }
+
+/* Profilbild aus Jellyfin. Liegt über dem Buchstaben, statt ihn zu
+   ersetzen: fehlt das Bild oder wurde es gelöscht, nimmt onerror das
+   <img> heraus und der Buchstabe steht wieder da. */
+.user-avatar { position: relative; overflow: hidden; }
+.user-avatar img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Kleinere Ausgabe in den Serverlisten */
+.user-avatar.server-face {
+  width: 34px; height: 34px;
+  font-size: 0.9rem;
+}
+.user-avatar.server-face.dim { opacity: 0.45; }
 
 .profile-head {
   display: flex; align-items: center; gap: 11px;
@@ -737,11 +787,24 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 /* overflow:hidden statt auto — geblättert wird nur über die Pfeile.
    scrollBy() aus dem Skript funktioniert weiterhin; Mausrad und Wischen
    greifen nicht mehr in die Reihe ein und scrollen die Seite. */
+/* Zwei Bedingungen, die sich zunächst widersprechen:
+
+   1. Der Kasten muss scrollbar bleiben — die Blätterpfeile rufen
+      scrollBy() auf, und ein per `overflow: clip` gekappter Kasten
+      scrollt nicht mehr (das kostete beim ersten Versuch vier Tests).
+   2. Das aufgeklappte Panel unter der Kachel darf nicht abgeschnitten
+      werden.
+
+   Beides geht, weil `overflow: hidden` am *Polsterrand* kappt, nicht
+   am Inhaltsrand: Was in der unteren Polsterung liegt, bleibt sichtbar.
+   Also unten so viel Polsterung, dass das Panel hineinpasst
+   (190px + Innenabstand), und derselbe Betrag als negativer Rand
+   zurück — damit steht die Reihe im Layout genau wie vorher. */
 .row-scroll {
   display: flex; gap: 14px;
   overflow: hidden;
-  padding: 22px 44px 30px;
-  margin: -22px -44px -22px;
+  padding: 22px 44px 220px;
+  margin: -22px -44px -212px;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
   scrollbar-width: none;        /* Firefox */
@@ -854,18 +917,29 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 .card:hover .card-hover .play-circle { transform: scale(1); }
 .card-hover .play-circle svg { width: 22px; height: 22px; fill: #0a0e14; margin-left: 2px; }
 
-/* Details klappen erst beim Hovern auf — wie bei Prime */
+/* Details klappen erst beim Hovern auf — wie bei Prime.
+
+   Absolut positioniert, nicht im normalen Fluss: Ein wachsender Block
+   innerhalb der Reihe schob früher alles darunter nach unten, sobald
+   die Maus eine Kachel berührte. So legt sich der Block über den
+   Inhalt darunter, und das Layout bleibt ruhig. */
 .card-body {
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  z-index: 6;
   max-height: 0;
   opacity: 0;
   overflow: hidden;
   padding: 0 11px;
+  border-radius: 0 0 6px 6px;
+  background: var(--surface);
   transition: max-height 0.22s var(--ease), opacity 0.18s var(--ease), padding 0.22s var(--ease);
 }
 .card:hover .card-body {
   max-height: 190px;
   opacity: 1;
   padding: 10px 11px 12px;
+  box-shadow: 0 16px 34px rgba(0,0,0,0.6);
   transition-delay: 0.28s;
 }
 
@@ -2512,12 +2586,71 @@ kbd {
 .offline-row.failed .offline-state { color: var(--danger); }
 .offline-row.done .offline-state { color: var(--muted-2); }
 
-.offline-actions { display: flex; gap: 6px; }
+.offline-actions { display: flex; gap: 6px; align-items: center; }
 .offline-actions .card-icon-btn {
   position: static;
   width: 32px; height: 32px;
   opacity: 1; transform: none;
 }
+
+/* ---------- Gruppen: Album oder Staffel ---------- */
+
+.offline-group { cursor: pointer; }
+.offline-group:hover { border-color: var(--accent); }
+
+/* Der Zähler ist die Hauptaussage der Zeile — er darf nicht wie eine
+   Nebenbemerkung aussehen. */
+.group-count {
+  display: block;
+  font-size: 0.95rem; font-weight: 600;
+  color: var(--text);
+}
+.group-failed {
+  display: block;
+  font-size: 0.74rem; color: var(--danger);
+  margin-top: 2px;
+}
+.group-arrow {
+  width: 20px; height: 20px;
+  color: var(--muted-2);
+  flex: none;
+}
+.offline-group:hover .group-arrow { color: var(--accent); }
+
+/* ---------- Kopf der Gruppenseite ---------- */
+
+.group-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.group-head-art {
+  width: 56px; height: 56px; flex: none;
+  border-radius: 10px; overflow: hidden;
+  background: var(--surface-2);
+  display: grid; place-items: center;
+  color: var(--muted-2);
+}
+.group-head-art img { width: 100%; height: 100%; object-fit: cover; }
+.group-head-art svg { width: 24px; height: 24px; }
+.group-head-sub {
+  font-size: 0.82rem; color: var(--muted);
+  margin-top: 3px;
+}
+
+/* Download-Symbol in der Titelliste eines Albums */
+.queue-dl {
+  flex: none;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted-2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.queue-item:hover .queue-dl { opacity: 1; }
+.queue-dl:hover { background: var(--surface-3); color: var(--text); }
+.queue-dl svg { width: 17px; height: 17px; }
+/* Fertig geladen: dauerhaft sichtbar, in Akzentfarbe */
+.queue-dl.on { opacity: 1; color: var(--accent); }
+.queue-dl.busy { opacity: 1; color: var(--muted); }
 
 /* Im Offline-Modus alles ausblenden, was einen Server braucht */
 body.offline-mode .nav-btn.hidden,

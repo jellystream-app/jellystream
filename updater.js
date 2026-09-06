@@ -78,8 +78,24 @@ function init(notifier) {
  *  eine unverstaendliche Fehlermeldung erzeugen. */
 function canUpdate() {
   if (!app.isPackaged) return false;
+  /* Unter Linux erneuert sich nur das AppImage selbst. Ein Flatpak
+     wird über `flatpak update` versorgt, ein .deb über die
+     Paketverwaltung — in beiden Fällen liefe ein Selbstupdate an
+     fehlenden Rechten auf und hinterließe nur eine unverständliche
+     Fehlermeldung. */
   if (process.platform === 'linux' && !process.env.APPIMAGE) return false;
   return true;
+}
+
+/** Läuft die App in einem Flatpak-Sandkasten?
+ *  Die Datei legt Flatpak in jedem Container an. */
+function isFlatpak() {
+  if (process.env.FLATPAK_ID) return true;
+  try {
+    return require('fs').existsSync('/.flatpak-info');
+  } catch (error) {
+    return false;
+  }
 }
 
 async function check({ silent = true } = {}) {
@@ -127,6 +143,9 @@ function installNow() {
 /** Warum Updates abgeschaltet sind — fuer eine verstaendliche Anzeige. */
 function unsupportedReason() {
   if (!app.isPackaged) return 'development';
+  // Flatpak eigens benennen: "flatpak update" ist ein anderer Weg als
+  // apt, und der Nutzer soll den richtigen genannt bekommen
+  if (process.platform === 'linux' && isFlatpak()) return 'flatpak';
   if (process.platform === 'linux' && !process.env.APPIMAGE) return 'packageManaged';
   return null;
 }

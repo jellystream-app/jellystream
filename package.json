@@ -137,6 +137,12 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "flatpak",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png",
@@ -150,6 +156,28 @@
         }
       },
       "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "flatpak": {
+      "runtime": "org.freedesktop.Platform",
+      "runtimeVersion": "24.08",
+      "sdk": "org.freedesktop.Sdk",
+      "base": "org.electronjs.Electron2.BaseApp",
+      "baseVersion": "24.08",
+      "license": "MIT",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "finishArgs": [
+        "--share=network",
+        "--share=ipc",
+        "--socket=x11",
+        "--socket=wayland",
+        "--socket=pulseaudio",
+        "--device=dri",
+        "--filesystem=xdg-download",
+        "--filesystem=xdg-videos",
+        "--filesystem=xdg-music",
+        "--talk-name=org.freedesktop.ScreenSaver",
+        "--talk-name=org.freedesktop.Notifications"
+      ]
     }
   },
   "dependencies": {

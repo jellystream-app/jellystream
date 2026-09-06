@@ -72,7 +72,9 @@ app.whenReady().then(async () => {
         'showOffline', 'openDownloadModal', 'refreshOffline', 'offlineEntry',
         'fileUrl', 'formatBytes', 'updateDownloadButtons', 'isDownloadable',
         'playLocalFile', 'applyCustomCss', 'applyInterface', 'loadCustomThemes',
-        'buildThemeGrid', 'enterOfflineMode', 'hasOfflineContent'
+        'buildThemeGrid', 'enterOfflineMode', 'hasOfflineContent',
+        'downloadAlbum', 'downloadSeason', 'showDownloadGroup', 'playOfflineQueue',
+        'isAudioItem', 'buildOfflineRow', 'buildGroupRow'
       ])};
       return names.filter((n) => typeof window[n] !== 'function' && typeof eval('typeof ' + n) !== 'function');
     })()

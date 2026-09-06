@@ -91,6 +91,13 @@ app.whenReady().then(async () => {
 
       /* ============ 2. KARTE BAUT DAS RICHTIGE BILD ============ */
 
+      /* Die Kachelform ist einstellbar; hier geht es um das Verhalten
+         im Querformat, also wird es ausdruecklich erzwungen. Ohne das
+         entschiede die Voreinstellung ("auto") mit, und der Test
+         pruefte je nach Einstellung etwas anderes. */
+      const shapeBackup = prefs.cardShape;
+      prefs.cardShape = 'wide';
+
       const posterCard = buildCard(
         { Id: 'c1', Name: 'Nur Poster', Type: 'Movie', ImageTags: { Primary: 'p' } },
         { shape: 'wide' }
@@ -106,6 +113,41 @@ app.whenReady().then(async () => {
       const thumbImg = thumbCard.querySelector('.card-art img');
       check('Thumb-Karte ohne from-poster',
             thumbImg && !thumbImg.classList.contains('from-poster'));
+
+      /* --- Die neue Kachelform --- */
+      prefs.cardShape = 'poster';
+      const upright = buildCard(
+        { Id: 'c4', Name: 'Hochkant', Type: 'Movie', ImageTags: { Primary: 'p', Thumb: 't' } },
+        { shape: 'wide' }
+      );
+      check('Hochkant-Einstellung macht Poster-Kachel',
+            upright.classList.contains('poster'), upright.className);
+      const uprightImg = upright.querySelector('.card-art img');
+      check('Hochkant nutzt das Primary-Bild',
+            uprightImg && uprightImg.src.includes('/Images/Primary?'), uprightImg && uprightImg.src);
+      check('Hochkant nicht als beschnitten markiert',
+            uprightImg && !uprightImg.classList.contains('from-poster'));
+
+      /* Die Form gilt fuer die ganze Reihe, nicht je Eintrag. Frueher
+         entschied der Typ mit — dann stand ein hochkanter Film neben
+         einer querformatigen Folge in derselben Reihe. */
+      const mixMovie = buildCard({ Id: 'c5', Name: 'F', Type: 'Movie', ImageTags: { Primary: 'p' } }, { shape: 'wide' });
+      const mixEpisode = buildCard({ Id: 'c6', Name: 'E', Type: 'Episode', ImageTags: { Thumb: 't' } }, { shape: 'wide' });
+      check('Hochkant gilt fuer alle Typen gleich',
+        mixMovie.classList.contains('poster') === mixEpisode.classList.contains('poster'),
+        'Film=' + mixMovie.className + ' Folge=' + mixEpisode.className);
+
+      prefs.cardShape = 'wide';
+      const wideMovie = buildCard({ Id: 'c7', Name: 'F', Type: 'Movie', ImageTags: { Primary: 'p' } }, { shape: 'wide' });
+      const wideEpisode = buildCard({ Id: 'c8', Name: 'E', Type: 'Episode', ImageTags: { Thumb: 't' } }, { shape: 'wide' });
+      check('Standard: nichts wird hochkant',
+        !wideMovie.classList.contains('poster') && !wideEpisode.classList.contains('poster'));
+
+      // Ausdrueckliche Anforderung sticht die Einstellung
+      const askedSquare = buildCard({ Id: 'c9', Name: 'A', Type: 'MusicAlbum', ImageTags: { Primary: 'p' } }, { shape: 'square' });
+      check('square bleibt square', askedSquare.classList.contains('square'));
+
+      prefs.cardShape = shapeBackup;
 
       // Quadratische Kacheln (Musik) sollen weiter Primary nehmen
       const squareCard = buildCard(

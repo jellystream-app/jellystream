@@ -184,6 +184,54 @@ function wideImageUrl(item) {
   return { src: primary, cropped: Boolean(primary) };
 }
 
+/** Hochkant-Bild (2:3). Anders als wideImageUrl wird hier das Poster
+ *  gesucht — und nur zur Not auf Querformat zurückgefallen.
+ *
+ *  Die Höhe ist bewusst größer als bei 16:9: eine 2:3-Kachel derselben
+ *  Breite ist anderthalbmal so hoch, ein 420er Bild wirkte darin weich. */
+function posterImageUrl(item) {
+  if (!item) return { src: '', cropped: false };
+
+  const primary = imageUrl(item, 'Primary', 560);
+  if (primary) return { src: primary, cropped: false };
+
+  // Folgen haben oft nur ein eigenes Szenenbild — dann lieber das
+  // Serienposter, das ist hochkant.
+  if (item.SeriesPrimaryImageTag && item.SeriesId) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const height = Math.round(560 * dpr);
+    return {
+      src: `${state.serverUrl}/Items/${item.SeriesId}/Images/Primary`
+        + `?maxHeight=${height}&quality=90&tag=${item.SeriesPrimaryImageTag}`,
+      cropped: false
+    };
+  }
+
+  /* Kein Poster vorhanden: Querformat in die Hochkant-Kachel. Das
+     beschneidet links und rechts, ist aber besser als eine leere
+     Fläche. `cropped` bleibt false — die Ausrichtung nach oben gilt
+     nur für den umgekehrten Fall (Poster in 16:9). */
+  const wide = wideImageUrl(item);
+  return { src: wide.src, cropped: false };
+}
+
+/** Welche Kachelform gilt hier?
+ *
+ *  Die Form gehört der ganzen Reihe, nicht der einzelnen Kachel. Ein
+ *  erster Versuch entschied je Eintrag nach dessen Typ — dann stand
+ *  ein hochkanter Film neben einer querformatigen Folge, und die Reihe
+ *  sah zerrissen aus. Deshalb entscheidet allein die Einstellung:
+ *
+ *    wide   (Standard) — alles quer, wie bisher
+ *    poster            — Querformat-Reihen werden hochkant
+ *
+ *  Was der Aufrufer ausdrücklich anfordert (square für Musik, poster
+ *  für Posterreihen), bleibt in jedem Fall unangetastet. */
+function resolveShape(item, requested) {
+  if (requested !== 'wide') return requested;
+  return (prefs.cardShape === 'poster') ? 'poster' : 'wide';
+}
+
 // Jellyfin liefert ISO-639-2 (3-stellig); Intl erwartet 2-stellige Codes
 const LANG_MAP = {
   ger: 'de', deu: 'de', eng: 'en', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it',
@@ -439,14 +487,19 @@ const ICON_X = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M
 const ICON_DOWNLOAD = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10.5 12 14.5l4-4"/><path d="M5 17v1.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V17"/></svg>`;
 
 // Prime-Video-Kachel: 16:9-Bild, Details klappen beim Hovern auf
-/* Nur einzelne Videos lassen sich am Stück laden — eine Serie oder ein
-   Album ist ein Container ohne eigene Datei. */
+/* Nur einzelne Titel lassen sich am Stück laden — eine Serie oder ein
+   Album ist ein Container ohne eigene Datei. Für die gibt es den
+   Sammel-Download (downloadAlbum / downloadSeason), der die enthaltenen
+   Titel einzeln einreiht. */
 function isDownloadable(item) {
-  return Boolean(window.downloads) && (item.Type === 'Movie' || item.Type === 'Episode' || item.Type === 'Video');
+  return Boolean(window.downloads)
+    && (item.Type === 'Movie' || item.Type === 'Episode' || item.Type === 'Video' || item.Type === 'Audio');
 }
 
 function buildCard(item, options = {}) {
-  const { shape = 'wide', subtitle } = options;
+  const { subtitle } = options;
+  // Die Einstellung entscheidet mit, ob quer oder hochkant gezeigt wird
+  const shape = resolveShape(item, options.shape || 'wide');
 
   const card = document.createElement('article');
   card.className = `card ${shape === 'poster' ? 'poster' : shape === 'square' ? 'square' : ''}`;
@@ -457,10 +510,14 @@ function buildCard(item, options = {}) {
   const art = document.createElement('div');
   art.className = 'card-art';
 
-  // Querformat-Kacheln brauchen ein Querformat-Bild, nicht das Poster
+  /* Das Bild muss zur Form passen: Ein Querformat-Bild in einer
+     Hochkant-Kachel wäre unscharf und beschnitten — und umgekehrt.
+     Deshalb je Form die passende Anfrage samt eigener Höhe. */
   const picture = shape === 'wide'
     ? wideImageUrl(item)
-    : { src: imageUrl(item, 'Primary', 480), cropped: false };
+    : shape === 'poster'
+      ? posterImageUrl(item)
+      : { src: imageUrl(item, 'Primary', 480), cropped: false };
 
   const src = picture.src;
   if (src) {
@@ -806,11 +863,16 @@ function skeletonCards(count = 12, shape = 'wide') {
 }
 
 function skeletonRows(rows = 3) {
+  /* Die Platzhalter müssen die Form der späteren Kacheln haben —
+     sonst springt das Layout in dem Moment, in dem die Daten
+     eintreffen. */
+  const shape = prefs.cardShape === 'poster' ? 'poster' : 'wide';
+
   return Array.from({ length: rows }, () => `
     <div class="sk-row">
       <div class="sk-heading"></div>
       <div class="sk-strip">${Array.from({ length: 7 }, () =>
-        '<div class="sk-card wide"><div class="sk-art"></div><div class="sk-line"></div></div>').join('')}</div>
+        `<div class="sk-card ${shape}"><div class="sk-art"></div><div class="sk-line"></div></div>`).join('')}</div>
     </div>`).join('');
 }
 
@@ -832,6 +894,8 @@ function setActiveNav(view) {
   });
   if (view) {
     document.querySelectorAll('.library-btn').forEach((btn) => btn.classList.remove('active'));
+    // Auch die Bibliotheks-Reiter abwählen, sonst leuchten zwei zugleich
+    document.querySelectorAll('.nav-btn[data-library]').forEach((btn) => btn.classList.remove('active'));
   }
 }
 
@@ -1169,8 +1233,18 @@ function renderCatalogShell(genres) {
       </div>
     </div>
 
-    <div class="grid ${catalog.shape === 'square' ? 'squares' : ''}" id="catalog-grid"></div>
+    <div class="grid ${catalogGridClass()}" id="catalog-grid"></div>
     <div class="load-more" id="catalog-more"><div class="spinner small"></div></div>`;
+}
+
+/** Rasterbreite passend zur Kachelform.
+ *
+ *  Ohne das blieben die Spalten 252px breit, während die Kacheln nur
+ *  168px messen — es entstünden Lücken. */
+function catalogGridClass() {
+  if (catalog.shape === 'square') return 'squares';
+  if (catalog.shape === 'poster') return 'posters';
+  return prefs.cardShape === 'poster' ? 'posters' : '';
 }
 
 function wireCatalogControls() {
@@ -1327,6 +1401,10 @@ function showLibrary(library) {
   document.querySelectorAll('.library-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.id === library.Id);
   });
+  // Der Reiter in der Leiste, falls die Bibliothek dort steht
+  document.querySelectorAll('.nav-btn[data-library]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.library === library.Id);
+  });
 
   const isMusic = library.CollectionType === 'music';
   return openCatalog({
@@ -1448,10 +1526,12 @@ async function showDetail(base) {
       item.ProductionYear,
       item.OfficialRating ? `<span class="rating">${escapeHtml(item.OfficialRating)}</span>` : '',
       isSeries
-        ? (seasons.length ? `${seasons.length} Staffel${seasons.length === 1 ? '' : 'n'}` : '')
+        ? (seasons.length
+            ? `${seasons.length} ${seasons.length === 1 ? t('detail.season') : t('detail.seasons')}`
+            : '')
         : formatRuntime(item.RunTimeTicks),
       item.CommunityRating ? `★ ${item.CommunityRating.toFixed(1)}` : '',
-      item.CriticRating ? `${Math.round(item.CriticRating)} % Kritiker` : ''
+      item.CriticRating ? t('detail.criticRating', { percent: Math.round(item.CriticRating) }) : ''
     ].filter(Boolean);
 
     el.viewRoot.innerHTML = `
@@ -1589,11 +1669,12 @@ function renderEpisodesPanel(item, seasons) {
         <h3>${escapeHtml(t('detail.episodes'))}</h3>
         <div class="season-select">
           <button class="season-trigger" id="season-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-            <span id="season-label">Staffel</span>
+            <span id="season-label">${escapeHtml(t('detail.season'))}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <div class="season-menu hidden" id="season-menu"></div>
         </div>
+        ${window.downloads ? `<button class="outline-btn small" id="season-download" type="button">${escapeHtml(t('download.seasonAll'))}</button>` : ''}
       </div>
       <div class="episode-list" id="episode-list"></div>
     </div>`;
@@ -1602,7 +1683,8 @@ function renderEpisodesPanel(item, seasons) {
   const menu = $('season-menu');
   const label = $('season-label');
 
-  const seasonName = (season, index) => season.Name || `Staffel ${season.IndexNumber ?? index + 1}`;
+  const seasonName = (season, index) =>
+    season.Name || `${t('detail.season')} ${season.IndexNumber ?? index + 1}`;
 
   function closeSeasonMenu() {
     menu.classList.add('hidden');
@@ -1624,7 +1706,9 @@ function renderEpisodesPanel(item, seasons) {
     const option = document.createElement('button');
     option.type = 'button';
     option.className = `season-option ${index === 0 ? 'active' : ''}`;
-    const count = season.ChildCount ? `<small>${season.ChildCount} Folgen</small>` : '';
+    const count = season.ChildCount
+      ? `<small>${escapeHtml(t('detail.episodeCountShort', { count: season.ChildCount }))}</small>`
+      : '';
     option.innerHTML = `<span>${escapeHtml(seasonName(season, index))}</span>${count}`;
     option.addEventListener('click', () => selectSeason(index));
     menu.appendChild(option);
@@ -1657,6 +1741,11 @@ function renderEpisodesPanel(item, seasons) {
     if (!event.target.closest('.season-select')) closeSeasonMenu();
   };
   document.addEventListener('click', seasonOutsideClick);
+
+  $('season-download')?.addEventListener('click', () => {
+    if (!seasonEpisodes.length) return toast(t('download.groupEmpty'), true);
+    downloadSeason(seasonEpisodes, `${item.Name} · ${label.textContent}`);
+  });
 
   selectSeason(0);
 }
@@ -1912,6 +2001,9 @@ function renderSimilarPanel(items) {
   items.forEach((entry) => grid.appendChild(buildCard(entry)));
 }
 
+/* Die zuletzt geladene Staffel — der Sammelknopf greift darauf zu. */
+let seasonEpisodes = [];
+
 async function loadEpisodes(seriesId, seasonId) {
   const list = $('episode-list');
   if (!list) return;
@@ -1922,7 +2014,8 @@ async function loadEpisodes(seriesId, seasonId) {
 
   try {
     const data = await api(
-      `/Shows/${seriesId}/Episodes?seasonId=${seasonId}&userId=${state.userId}&Fields=Overview,RunTimeTicks,MediaSources`
+      // SeasonName: der Sammel-Download beschriftet die Gruppe damit
+      `/Shows/${seriesId}/Episodes?seasonId=${seasonId}&userId=${state.userId}&Fields=Overview,RunTimeTicks,MediaSources,SeasonName`
     );
     if (!isCurrent('episodes', token)) return;
 
@@ -1935,6 +2028,12 @@ async function loadEpisodes(seriesId, seasonId) {
 
     list.innerHTML = '';
     episodes.forEach((episode) => list.appendChild(buildEpisodeRow(episode, episodes)));
+
+    /* Der Sammelknopf braucht die geladene Staffel. Er sitzt außerhalb
+       der Liste und überlebt den Staffelwechsel, deshalb hier merken
+       statt beim Aufbau der Seite. */
+    seasonEpisodes = episodes;
+    updateDownloadButtons();
   } catch (error) {
     if (!isCurrent('episodes', token)) return;
     console.error(error);
@@ -2064,6 +2163,7 @@ async function showAlbum(album) {
                 ${escapeHtml(t('music.play'))}
               </button>
               <button class="outline-btn" id="album-shuffle" type="button">${escapeHtml(t('music.shuffle'))}</button>
+              ${window.downloads ? `<button class="outline-btn" id="album-download" type="button">${escapeHtml(t('download.albumAll'))}</button>` : ''}
             </div>
           </div>
         </div>
@@ -2104,9 +2204,36 @@ async function showAlbum(album) {
           <div class="queue-title">${escapeHtml(track.Name || '')}</div>
           <div class="queue-artist">${escapeHtml(track.Artists?.join(', ') || track.AlbumArtist || '')}</div>
         </div>
-        <span class="queue-dur">${formatTime(ticksToSeconds(track.RunTimeTicks))}</span>`;
+        <span class="queue-dur">${formatTime(ticksToSeconds(track.RunTimeTicks))}</span>
+        ${isDownloadable(track) ? `<button class="queue-dl" type="button"
+                data-dl-item="${escapeHtml(track.Id)}"
+                title="${escapeHtml(t('card.download'))}"
+                aria-label="${escapeHtml(t('card.download'))}">${ICON_DOWNLOAD}</button>` : ''}`;
+
+      // Klick auf das Symbol darf nicht zugleich den Titel starten
+      item.querySelector('.queue-dl')?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const entry = offlineEntry(track.Id);
+        if (entry) return toast(t('offline.alreadyDownloaded'));
+        openDownloadModal({ ...track, Album: track.Album || album.Name, AlbumId: track.AlbumId || album.Id });
+      });
+
       item.addEventListener('click', () => music.play(tracks, index));
       list.appendChild(item);
+    });
+
+    updateDownloadButtons();
+
+    $('album-download')?.addEventListener('click', () => {
+      /* Album- und Interpretennamen ergänzen: In der Titelliste fehlen
+         sie mitunter, und ohne sie fände die Gruppierung nicht statt. */
+      const enriched = tracks.map((track) => ({
+        ...track,
+        Album: track.Album || album.Name,
+        AlbumId: track.AlbumId || album.Id,
+        AlbumArtist: track.AlbumArtist || album.AlbumArtist
+      }));
+      downloadAlbum(album, enriched);
     });
 
     $('album-play').addEventListener('click', () => music.play(tracks, 0));
@@ -2451,14 +2578,47 @@ el.connectForm.addEventListener('submit', async (event) => {
   }
 });
 
+/** Die beiden Avatare oben rechts: Bild wenn hinterlegt, sonst der
+ *  Anfangsbuchstabe. An einer Stelle, weil drei Wege hierher führen
+ *  (Anmelden, Sitzung fortsetzen, Offline-Start). */
+function renderUserAvatar() {
+  const initial = (state.username || '?').charAt(0).toUpperCase();
+  const src = userImageUrl(
+    { imageTag: state.userImageTag, userId: state.userId, serverUrl: state.serverUrl },
+    96
+  );
+
+  el.userName.textContent = state.username;
+
+  [el.userAvatar, el.userAvatarBig].forEach((node) => {
+    if (!node) return;
+    node.textContent = initial;
+    if (!src) return;
+
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = '';
+    // Ein gelöschtes Profilbild hinterlässt sonst ein kaputtes Symbol
+    img.addEventListener('error', () => img.remove());
+    node.appendChild(img);
+  });
+}
+
 async function enterApp() {
   // Falls die App offline gestartet war, den vollen Betrieb wiederherstellen
   leaveOfflineMode();
 
-  const initial = (state.username || '?').charAt(0).toUpperCase();
-  el.userName.textContent = state.username;
-  el.userAvatar.textContent = initial;
-  el.userAvatarBig.textContent = initial;
+  /* Profilbild des Benutzers holen — es wird beim Server-Eintrag
+     mitgespeichert, damit der Schnellwechsel ohne Netzabfrage
+     auskommt. Schlägt es fehl, bleibt es beim Buchstaben. */
+  try {
+    const me = await api(`/Users/${state.userId}`);
+    state.userImageTag = me?.PrimaryImageTag || null;
+  } catch (error) {
+    state.userImageTag = null;
+  }
+
+  renderUserAvatar();
   el.loginScreen.classList.add('hidden');
 
   // Zugang für den Schnellwechsel merken
@@ -2471,6 +2631,7 @@ async function enterApp() {
       serverName,
       userId: state.userId,
       username: state.username,
+      imageTag: state.userImageTag,
       token: state.token
     });
   } catch (error) {
@@ -2484,10 +2645,96 @@ async function enterApp() {
   navigate(showHome, { push: false });
 }
 
+/* ============ NAVIGATION AUS DEN BIBLIOTHEKEN ============
+   Statt fester Reiter (Filme, Serien, Musik) zeigt die Leiste, was auf
+   dem Server wirklich liegt — mit dessen Namen und Reihenfolge. Wer
+   „Anime", „Doku" oder „Hörbücher" angelegt hat, findet sie dort, statt
+   sie im Aufklappmenü suchen zu müssen.
+
+   Feste Ansichten bleiben: Startseite, Meine Liste, Playlists, Offline.
+   Das sind keine Bibliotheken.
+   ========================================================= */
+
+/* Wie viele Bibliotheken in die Leiste passen. Darüber hinaus wandern
+   sie ins Aufklappmenü — sonst verdrängt die Leiste die Suche.
+
+   Vier statt sechs: mit den festen Ansichten davor und dahinter war
+   die Leiste bei sechs Bibliotheken bis in den Profilknopf gelaufen. */
+const NAV_LIBRARY_LIMIT = 4;
+
+/* Ansichten, die es als Reiter schon gibt. Heißt eine Bibliothek
+   genauso ("Playlists", "Sammlungen"), stünde der Name sonst zweimal
+   in der Leiste. */
+const NAV_RESERVED_KEYS = ['nav.favorites', 'nav.playlists', 'nav.offline', 'nav.home'];
+
+/* Welche Bibliotheken schon als Reiter dastehen. Das Menü hebt sie
+   hervor, statt sie wortgleich zu wiederholen. */
+let navBarLibraryIds = new Set();
+
+function applyNavMode() {
+  const links = document.querySelector('.nav-links');
+  if (!links) return;
+
+  // Erzeugte Einträge des letzten Aufbaus entfernen
+  links.querySelectorAll('.nav-btn[data-library]').forEach((btn) => btn.remove());
+
+  const useLibraries = prefs.navFromLibraries !== false && state.libraries?.length;
+
+  /* Filme/Serien/Musik sind bei aktiver Bibliotheksnavigation doppelt
+     gemoppelt — sie sind selbst Bibliotheken. */
+  ['movies', 'series', 'music'].forEach((view) => {
+    const btn = links.querySelector(`.nav-btn[data-view="${view}"]`);
+    if (btn) btn.classList.toggle('hidden', Boolean(useLibraries));
+  });
+
+  if (!useLibraries) return;
+
+  /* Die Bibliotheken kommen direkt hinter „Startseite" — dort standen
+     bisher Filme und Serien, und dort sucht man sie. „Meine Liste",
+     „Playlists" und „Offline" bleiben dahinter. */
+  let anchor = links.querySelector('.nav-btn[data-view="favorites"]');
+
+  /* Namensgleiche überspringen: Eine Bibliothek namens „Playlists"
+     stünde sonst neben dem gleichnamigen festen Reiter — zweimal
+     dasselbe Wort, zwei verschiedene Ziele. Über das Aufklappmenü
+     bleibt sie erreichbar. */
+  const taken = NAV_RESERVED_KEYS.map((key) => t(key).toLowerCase());
+  const shown = state.libraries
+    .filter((library) => !taken.includes(String(library.Name || '').trim().toLowerCase()))
+    .slice(0, NAV_LIBRARY_LIMIT);
+
+  // Was in der Leiste steht, braucht das Menü nicht zu wiederholen
+  navBarLibraryIds = new Set(shown.map((library) => library.Id));
+
+  shown.forEach((library) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nav-btn';
+    btn.dataset.library = library.Id;
+    btn.textContent = library.Name;
+    btn.addEventListener('click', () => {
+      state.history = [];
+      el.backBtn.classList.add('hidden');
+      navigate(() => showLibrary(library), { push: false });
+    });
+    if (anchor) links.insertBefore(btn, anchor);
+    else links.appendChild(btn);
+  });
+
+  /* Das Menü bleibt immer erreichbar — es ist der einzige Weg zu allem,
+     was nicht als Reiter dasteht (Live TV, Aufnahmen, namensgleiche
+     Bibliotheken). Es nur bei Überzahl einzublenden wäre genau dann
+     falsch, wenn vier Bibliotheken in der Leiste stehen und eine
+     fünfte übersprungen wurde. */
+  el.libraryToggle?.classList.remove('hidden');
+}
+
 async function loadLibraries() {
   try {
     const data = await api(`/Users/${state.userId}/Views`);
     state.libraries = data.Items || [];
+
+    applyNavMode();
 
     el.libraryMenu.innerHTML = '';
 
@@ -2496,7 +2743,14 @@ async function loadLibraries() {
       return;
     }
 
-    state.libraries.forEach((library) => {
+    /* Zuerst, was NICHT in der Leiste steht — Live TV, Aufnahmen und
+       alles Weitere. Genau dafür ist das Menü da; die Reiter oben
+       wären hier nur Wiederholung. Sie kommen trotzdem mit, damit die
+       Liste vollständig bleibt, aber unter einem Trenner. */
+    const inBar = state.libraries.filter((library) => navBarLibraryIds.has(library.Id));
+    const rest = state.libraries.filter((library) => !navBarLibraryIds.has(library.Id));
+
+    const addEntry = (library) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'library-btn';
@@ -2509,7 +2763,17 @@ async function loadLibraries() {
         navigate(() => showLibrary(library), { push: false });
       });
       el.libraryMenu.appendChild(btn);
-    });
+    };
+
+    rest.forEach(addEntry);
+
+    if (rest.length && inBar.length) {
+      const line = document.createElement('div');
+      line.className = 'menu-separator';
+      el.libraryMenu.appendChild(line);
+    }
+
+    inBar.forEach(addEntry);
   } catch (error) {
     console.error('Libraries could not be loaded:', error);
   }
@@ -2668,10 +2932,10 @@ async function hasOfflineContent() {
 async function enterOfflineMode() {
   offline.mode = true;
 
-  const initial = (state.username || '?').charAt(0).toUpperCase();
-  el.userName.textContent = state.username;
-  el.userAvatar.textContent = initial;
-  el.userAvatarBig.textContent = initial;
+  /* Ohne Server kein Bild — die Adresse wäre nicht erreichbar.
+     Der Buchstabe genügt hier. */
+  state.userImageTag = null;
+  renderUserAvatar();
 
   el.loginScreen.classList.add('hidden');
   el.appShell.classList.remove('hidden');
@@ -2681,6 +2945,8 @@ async function enterOfflineMode() {
   document.querySelectorAll('.nav-btn[data-view]').forEach((btn) => {
     btn.classList.toggle('hidden', btn.dataset.view !== 'offline');
   });
+  // Bibliotheks-Reiter ebenso — ohne Server führen sie ins Leere
+  document.querySelectorAll('.nav-btn[data-library]').forEach((btn) => btn.classList.add('hidden'));
   el.libraryToggle.classList.add('hidden');
   el.searchToggle.classList.add('hidden');
 
@@ -2697,8 +2963,13 @@ function leaveOfflineMode() {
   offline.mode = false;
   document.body.classList.remove('offline-mode');
   document.querySelectorAll('.nav-btn[data-view]').forEach((btn) => btn.classList.remove('hidden'));
+  document.querySelectorAll('.nav-btn[data-library]').forEach((btn) => btn.classList.remove('hidden'));
   el.libraryToggle.classList.remove('hidden');
   el.searchToggle.classList.remove('hidden');
+  /* Die Leiste neu aufbauen: leaveOfflineMode() hat gerade alle
+     data-view-Knöpfe eingeblendet, auch die, die bei aktiver
+     Bibliotheksnavigation verborgen bleiben sollen. */
+  applyNavMode();
 }
 
 /* ========================== TITLE BAR ========================== */

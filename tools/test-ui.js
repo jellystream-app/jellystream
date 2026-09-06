@@ -149,8 +149,15 @@ app.whenReady().then(async () => {
       /* --- Download-Hilfsfunktionen --- */
       check('Film ist herunterladbar', isDownloadable({ Type: 'Movie', Id: 'a' }));
       check('Folge ist herunterladbar', isDownloadable({ Type: 'Episode', Id: 'b' }));
+      check('Musiktitel ist herunterladbar', isDownloadable({ Type: 'Audio', Id: 'e' }));
+      /* Container haben keine eigene Datei — fuer sie gibt es den
+         Sammel-Download, der die enthaltenen Titel einzeln einreiht. */
       check('Serie ist NICHT herunterladbar', !isDownloadable({ Type: 'Series', Id: 'c' }));
-      check('Album ist NICHT herunterladbar', !isDownloadable({ Type: 'MusicAlbum', Id: 'd' }));
+      check('Album selbst ist kein Einzeldownload', !isDownloadable({ Type: 'MusicAlbum', Id: 'd' }));
+
+      /* --- Musik-Qualitaetsstufen --- */
+      check('Zwei Musikstufen', DL_AUDIO_QUALITIES.length === 2, String(DL_AUDIO_QUALITIES.length));
+      check('Musik erkennt Audio', isAudioItem({ Type: 'Audio' }) && !isAudioItem({ Type: 'Movie' }));
 
       /* --- Qualitaetsstufen --- */
       check('Vier Download-Stufen', DL_QUALITIES.length === 4, String(DL_QUALITIES.length));

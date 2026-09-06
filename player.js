@@ -1409,6 +1409,27 @@ const music = {
     // Vorherigen Titel beim Server abmelden, sonst sammeln sich Sessions an
     stopReporting('audio');
 
+    /* Liegt der Titel auf der Platte, wird er von dort gespielt —
+       ohne Server und ohne Reporting. Dieselbe Regel wie bei
+       playVideo(); erst dadurch ist Musik wirklich offline nutzbar. */
+    const local =
+      this.current.localFile ||
+      (typeof offlineEntry === 'function' ? offlineEntry(this.current.Id)?.file : null);
+
+    if (local) {
+      mp.audio.src = fileUrl(local);
+      mp.audio.play().catch((error) => console.warn('Autoplay blockiert:', error));
+
+      this.renderMeta();
+      this.renderQueue();
+      // Songtexte liegen beim Server — offline gibt es keine
+      this.lyricLines = [];
+      if (!state.token) mp.lyrics.innerHTML = '';
+      else this.loadLyrics(this.current.Id);
+      mp.mini.classList.remove('hidden');
+      return;
+    }
+
     const url = `${state.serverUrl}/Audio/${this.current.Id}/stream?static=true&api_key=${encodeURIComponent(state.token)}`;
     mp.audio.src = url;
     mp.audio.play().catch((error) => console.warn('Autoplay blockiert:', error));
@@ -1425,7 +1446,8 @@ const music = {
     const item = this.current;
     if (!item) return;
 
-    const art = imageUrl(item, 'Primary', 640);
+    // Offline liegt das Cover als Datei vor; imageUrl() braucht den Server
+    const art = item.localPoster || imageUrl(item, 'Primary', 640);
     const artist = item.Artists?.join(', ') || item.AlbumArtist || '';
 
     mp.miniTitle.textContent = item.Name || '';

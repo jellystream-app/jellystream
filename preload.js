@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('downloads', {
   start: (payload) => ipcRenderer.invoke('downloads:start', payload),
   cancel: (id) => ipcRenderer.invoke('downloads:cancel', id),
   remove: (id) => ipcRenderer.invoke('downloads:remove', id),
+  groups: () => ipcRenderer.invoke('downloads:groups'),
+  removeGroup: (key) => ipcRenderer.invoke('downloads:removeGroup', key),
   retry: (id) => ipcRenderer.invoke('downloads:retry', id),
   usage: () => ipcRenderer.invoke('downloads:usage'),
   getDir: () => ipcRenderer.invoke('downloads:getDir'),

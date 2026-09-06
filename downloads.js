@@ -87,6 +87,17 @@ function safeName(name) {
 
 function buildFileName(entry, extension) {
   const parts = [];
+
+  /* Musik: "Interpret - 03 - Titel". Die Nummer zweistellig, sonst
+     sortiert der Dateimanager 10 vor 2. */
+  if (entry.albumName) {
+    const artist = entry.artist || entry.albumArtist;
+    if (artist) parts.push(safeName(artist));
+    if (entry.track != null) parts.push(String(entry.track).padStart(2, '0'));
+    parts.push(safeName(entry.name));
+    return `${parts.join(' - ')}.${extension}`;
+  }
+
   if (entry.seriesName) {
     parts.push(safeName(entry.seriesName));
     const season = entry.season != null ? String(entry.season).padStart(2, '0') : null;
@@ -96,6 +107,112 @@ function buildFileName(entry, extension) {
   parts.push(safeName(entry.name));
   if (entry.year && !entry.seriesName) parts.push(`(${entry.year})`);
   return `${parts.join(' - ')}.${extension}`;
+}
+
+/** Unterordner fuer Alben und Staffeln; '' fuer Einzelstuecke. */
+function groupFolder(entry) {
+  if (entry.albumName) {
+    const artist = entry.albumArtist || entry.artist;
+    return path.join('Musik', safeName(artist || 'Unbekannt'), safeName(entry.albumName));
+  }
+
+  if (entry.seriesName) {
+    const season = entry.season != null
+      ? `Staffel ${String(entry.season).padStart(2, '0')}`
+      : 'Folgen';
+    return path.join(safeName(entry.seriesName), safeName(season));
+  }
+
+  return '';
+}
+
+/* ------------------------- Gruppen -------------------------
+   Ein Album oder eine Staffel gehoert in der Liste zusammen. Der
+   Schluessel wird aus dem Eintrag abgeleitet und nicht gespeichert —
+   so gruppieren sich auch Downloads von frueher rueckwirkend mit.
+
+   Die Staffel gehoert in den Schluessel: sonst laegen acht Staffeln
+   in einem Topf und "3/10" waere "3/62".
+   ----------------------------------------------------------- */
+
+function groupKey(entry) {
+  if (entry.albumId) return `album:${entry.albumId}`;
+  if (entry.albumName) return `album:name:${entry.albumName}`;
+  if (entry.seriesName) return `series:${entry.seriesName}|${entry.season != null ? entry.season : '-'}`;
+  return null; // Film oder Einzelvideo: bleibt fuer sich
+}
+
+function groupTitle(entry) {
+  if (entry.albumName) return entry.albumName;
+  if (entry.seriesName) {
+    return entry.season != null
+      ? `${entry.seriesName} · ${entry.seasonLabel || `S${String(entry.season).padStart(2, '0')}`}`
+      : entry.seriesName;
+  }
+  return entry.name;
+}
+
+/** Fasst den Katalog zu Gruppen zusammen; Einzelstuecke bleiben einzeln.
+ *
+ *  Die Reihenfolge folgt dem juengsten Eintrag einer Gruppe — sonst
+ *  wanderte eine Serie nach oben, sobald eine alte Folge nachlaedt. */
+function groups() {
+  const map = new Map();
+  const singles = [];
+
+  store.items.forEach((item) => {
+    const key = groupKey(item);
+    if (!key) {
+      singles.push({ kind: 'single', entry: { ...item } });
+      return;
+    }
+
+    if (!map.has(key)) {
+      map.set(key, {
+        kind: 'group',
+        key,
+        title: groupTitle(item),
+        type: item.albumName ? 'MusicAlbum' : 'Season',
+        artist: item.artist || item.albumArtist || null,
+        seriesName: item.seriesName || null,
+        season: item.season != null ? item.season : null,
+        poster: null,
+        items: [],
+        addedAt: 0,
+        expected: 0
+      });
+    }
+
+    const group = map.get(key);
+    group.items.push({ ...item });
+    group.addedAt = Math.max(group.addedAt, item.addedAt || 0);
+    if (!group.poster && item.poster) group.poster = item.poster;
+    // Die groesste bekannte Gesamtzahl gewinnt (s. Kommentar bei start())
+    if (item.groupTotal) group.expected = Math.max(group.expected, item.groupTotal);
+  });
+
+  const list = [...map.values(), ...singles];
+
+  list.forEach((node) => {
+    if (node.kind !== 'group') return;
+    node.done = node.items.filter((i) => i.state === 'done').length;
+    node.failed = node.items.filter((i) => i.state === 'failed').length;
+    node.busy = node.items.filter((i) => i.state === 'running' || i.state === 'queued').length;
+    // Ohne gemeldete Gesamtzahl zaehlt, was tatsaechlich da ist
+    node.total = Math.max(node.expected, node.items.length);
+    node.size = node.items.reduce((sum, i) => sum + (i.state === 'done' ? (i.size || 0) : 0), 0);
+    node.items.sort((a, b) => {
+      const at = a.track != null ? a.track : a.episode != null ? a.episode : 0;
+      const bt = b.track != null ? b.track : b.episode != null ? b.episode : 0;
+      return at - bt;
+    });
+  });
+
+  return list.sort((a, b) => {
+    const at = a.kind === 'group' ? a.addedAt : (a.entry.addedAt || 0);
+    const bt = b.kind === 'group' ? b.addedAt : (b.entry.addedAt || 0);
+    return bt - at;
+  });
 }
 
 function findItem(id) {
@@ -229,7 +346,8 @@ function finish(entry, ok, errorMessage) {
 
 function start(payload) {
   const {
-    itemId, name, type, seriesName, season, episode, year,
+    itemId, name, type, seriesName, season, seasonLabel, episode, year,
+    albumName, albumId, albumArtist, artist, track, groupTotal,
     url, quality, container, poster, expectedSize
   } = payload;
 
@@ -250,8 +368,23 @@ function start(payload) {
     type: type || 'Movie',
     seriesName: seriesName || null,
     season: season != null ? season : null,
+    seasonLabel: seasonLabel || null,
     episode: episode != null ? episode : null,
     year: year || null,
+
+    /* Musik. albumId ist der verlaessliche Schluessel; der Name dient
+       nur der Anzeige und als Rueckfall, wenn die Id fehlt. */
+    albumName: albumName || null,
+    albumId: albumId || null,
+    albumArtist: albumArtist || null,
+    artist: artist || null,
+    track: track != null ? track : null,
+
+    /* Wie viele Titel die Gruppe insgesamt hat. Wird beim
+       Sammel-Download mitgegeben, damit "3/10" auch dann stimmt,
+       wenn erst drei Eintraege im Katalog stehen. */
+    groupTotal: groupTotal || null,
+
     quality: quality || 'Original',
     url,
     state: 'queued',
@@ -262,7 +395,10 @@ function start(payload) {
     error: null
   };
 
-  entry.file = path.join(store.dir, buildFileName(entry, container || 'mp4'));
+  /* Alben und Staffeln bekommen einen eigenen Unterordner — sonst
+     liegen zweihundert Titel flach nebeneinander im Download-Ordner.
+     Einzelne Filme bleiben oben liegen, wo sie schnell zu finden sind. */
+  entry.file = path.join(store.dir, groupFolder(entry), buildFileName(entry, container || 'mp4'));
 
   // Gleicher Dateiname aus einem frueheren Download? Zaehler anhaengen.
   if (fs.existsSync(entry.file)) {
@@ -286,7 +422,10 @@ function start(payload) {
 
 // Cover getrennt laden, damit die Offline-Ansicht ohne Server Bilder zeigt
 function savePoster(entry, posterUrl) {
-  const target = path.join(store.dir, `${path.parse(entry.file).name}.jpg`);
+  // Neben die Mediendatei, nicht in den Wurzelordner — sonst laege das
+  // Cover eines Albumtitels getrennt von seinem Titel.
+  const parsed = path.parse(entry.file);
+  const target = path.join(parsed.dir, `${parsed.name}.jpg`);
   const request = net.request({ method: 'GET', url: posterUrl });
 
   request.on('response', (response) => {
@@ -360,6 +499,32 @@ function remove(id) {
   saveStore();
   emitChange();
   return true;
+}
+
+/** Entfernt eine ganze Gruppe. Ohne das muesste der Nutzer bei einem
+ *  Album mit zwanzig Titeln zwanzigmal klicken. */
+function removeGroup(key) {
+  const members = store.items.filter((item) => groupKey(item) === key);
+  // Ordner vorher merken: nach dem Loeschen sind die Eintraege weg
+  const folders = [...new Set(members.map((item) => path.dirname(item.file)))];
+
+  members.map((item) => item.id).forEach((id) => remove(id));
+
+  /* Leere Unterordner abraeumen — sonst bleibt nach dem Loeschen eines
+     Albums dessen Ordnergeruest zurueck. rmdir entfernt nur leere
+     Ordner, liegt dort noch etwas, bleibt es unangetastet. */
+  folders.forEach((folder) => {
+    if (!folder || path.resolve(folder) === path.resolve(store.dir)) return;
+    try {
+      fs.rmdirSync(folder);
+      const parent = path.dirname(folder);
+      if (path.resolve(parent) !== path.resolve(store.dir)) fs.rmdirSync(parent);
+    } catch (error) {
+      /* nicht leer oder nicht vorhanden — beides in Ordnung */
+    }
+  });
+
+  return { removed: members.length };
 }
 
 function retry(id) {
@@ -465,7 +630,8 @@ function shutdown() {
 module.exports = {
   init, shutdown, verify,
   list: () => publicList(),
-  start, cancel, remove, retry,
+  groups,
+  start, cancel, remove, removeGroup, retry,
   usage, chooseDir, openDir, revealFile,
   getDir: () => store.dir
 };
