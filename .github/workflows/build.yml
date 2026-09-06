@@ -203,23 +203,52 @@ jobs:
         id: keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::warning::ANDROID_KEYSTORE_BASE64 fehlt — die APK wird nicht signiert und lässt sich nicht installieren."
+          # Alle vier Secrets gehören zusammen. Fehlt eines davon,
+          # scheitert der Lauf sonst erst zehn Minuten später beim
+          # Signieren — und die Meldung nennt dann nicht, welches.
+          fehlend=""
+          [ -z "$KEYSTORE_B64" ] && fehlend="$fehlend ANDROID_KEYSTORE_BASE64"
+          [ -z "$KEYSTORE_PW"  ] && fehlend="$fehlend ANDROID_KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS"    ] && fehlend="$fehlend ANDROID_KEY_ALIAS"
+          [ -z "$KEY_PW"       ] && fehlend="$fehlend ANDROID_KEY_PASSWORD"
+
+          if [ -n "$fehlend" ]; then
+            echo "::warning::Secrets fehlen:$fehlend — die APK wird nicht signiert und ließe sich nicht installieren. Siehe docs/android-signierung.md"
             echo "vorhanden=nein" >> "$GITHUB_OUTPUT"
+            echo "fehlend=$fehlend" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # Ein aus einer Datei kopiertes Secret trägt leicht Ballast
+          # mit: Zeilenumbrüche, Leerzeichen — und ein BOM, das als
+          # Zeichenfolge EF BB BF am Anfang steht und kein Leerraum
+          # ist, also von `tr -d` allein nicht erwischt wird. Beides
+          # entfernen, sonst liefert base64 -d stillen Unsinn.
+          printf '%s' "$KEYSTORE_B64" \
+            | sed '1s/^\xEF\xBB\xBF//' \
+            | tr -d '\r\n \t' \
+            | base64 -d > "$RUNNER_TEMP/release.jks"
 
           # Eine unbrauchbare Datei fiele sonst erst beim Signieren auf.
           if [ ! -s "$RUNNER_TEMP/release.jks" ]; then
-            echo "::error::Der entschlüsselte Schlüssel ist leer — ist das Secret vollständig?"
+            echo "::error::Der entschlüsselte Schlüssel ist leer — ist das Secret vollständig kopiert?"
+            exit 1
+          fi
+
+          # Passt das Passwort und gibt es den Alias überhaupt? Beides
+          # hier prüfen, wo die Meldung noch eindeutig ist.
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" \
+                 -storepass "$KEYSTORE_PW" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            echo "::error::Der Schlüssel lässt sich nicht öffnen — Passwort falsch oder Alias '$KEY_ALIAS' nicht enthalten. Siehe docs/android-signierung.md"
             exit 1
           fi
 
           echo "vorhanden=ja" >> "$GITHUB_OUTPUT"
-          echo "Schlüssel bereitgestellt ($(stat -c%s "$RUNNER_TEMP/release.jks") bytes)"
+          echo "Schlüssel bereitgestellt ($(stat -c%s "$RUNNER_TEMP/release.jks") bytes), Alias '$KEY_ALIAS' gefunden"
 
       # assembleRelease statt assembleDebug: Eine Debug-APK trägt das
       # Flag android:debuggable und ein Wegwerf-Zertifikat. Android
@@ -261,6 +290,8 @@ jobs:
       # fertig aus, lässt sich aber nicht installieren. Das hier
       # abfangen, nicht erst auf dem Telefon.
       - name: Signatur prüfen
+        env:
+          FEHLENDE_SECRETS: ${{ steps.keystore.outputs.fehlend }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           APK="dist-android/Jellystream-${VERSION}.apk"
@@ -274,7 +305,14 @@ jobs:
           echo "--- Signatur ---"
           if ! "$SIGNER" verify --print-certs "$APK" > signatur.txt 2>&1; then
             cat signatur.txt
-            echo "::error::Die APK ist nicht gültig signiert und ließe sich nicht installieren."
+
+            # Der häufigste Grund ist kein Fehler im Code, sondern ein
+            # nicht hinterlegtes Secret. Dann hier auch sagen, welches.
+            if [ -n "$FEHLENDE_SECRETS" ]; then
+              echo "::error::Die APK ist unsigniert, weil diese Secrets fehlen:$FEHLENDE_SECRETS — anzulegen unter Settings → Secrets and variables → Actions. Anleitung: docs/android-signierung.md"
+            else
+              echo "::error::Die APK ist nicht gültig signiert und ließe sich nicht installieren."
+            fi
             exit 1
           fi
           cat signatur.txt
