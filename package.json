@@ -163,7 +163,7 @@
       "sdk": "org.freedesktop.Sdk",
       "base": "org.electronjs.Electron2.BaseApp",
       "baseVersion": "24.08",
-      "license": "MIT",
+      "license": "LICENSE",
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "finishArgs": [
         "--share=network",

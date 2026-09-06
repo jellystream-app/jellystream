@@ -57,6 +57,43 @@ app.whenReady().then(async () => {
   check('dist-Skript veroeffentlicht NICHT',
     (pkg.scripts.dist || '').includes('--publish never'), pkg.scripts.dist);
 
+  /* ---------- 1b. Dateiangaben in der Bau-Konfiguration ----------
+     electron-builder loest solche Angaben als PFAD auf, nicht als
+     Bezeichner. Ein `"license": "MIT"` sieht richtig aus, wirft aber
+     `cannot find specified resource "MIT"` — und zwar erst nach zehn
+     Minuten Bau in der CI. Deshalb hier, in Sekunden. */
+  const fileFields = [
+    ['linux.icon', pkg.build.linux?.icon],
+    ['win.icon', pkg.build.win?.icon],
+    ['nsis.installerIcon', pkg.build.nsis?.installerIcon],
+    ['nsis.uninstallerIcon', pkg.build.nsis?.uninstallerIcon],
+    ['nsis.installerHeaderIcon', pkg.build.nsis?.installerHeaderIcon],
+    ['flatpak.license', pkg.build.flatpak?.license]
+  ];
+
+  fileFields.forEach(([name, value]) => {
+    if (!value) return;
+    // Wie getResource(): erst buildResources, dann Projektwurzel
+    const found = fs.existsSync(path.join(ROOT, 'build', value))
+      || fs.existsSync(path.join(ROOT, value));
+    check(`Datei fuer ${name} vorhanden`, found, value);
+  });
+
+  /* ---------- 1c. Flatpak ---------- */
+  const fp = pkg.build.flatpak;
+  if (fp) {
+    const targets = (pkg.build.linux?.target || []).map((t) => t.target || t);
+    check('flatpak ist ein Linux-Ziel', targets.includes('flatpak'), targets.join(','));
+    /* Laufzeit und BaseApp muessen zusammenpassen: runtimeVersion allein
+       laesst baseVersion beim Vorgabewert 20.08 stehen, und diese
+       Mischung bricht mitten im Bau. */
+    check('Laufzeit und BaseApp gleiche Fassung',
+      fp.runtimeVersion === fp.baseVersion,
+      `runtime=${fp.runtimeVersion} base=${fp.baseVersion}`);
+    check('Fassung sieht plausibel aus',
+      /^\d{2}\.\d{2}$/.test(String(fp.runtimeVersion)), String(fp.runtimeVersion));
+  }
+
   /* ---------- 2. Das Modul selbst ---------- */
 
   const updater = require('../updater');
