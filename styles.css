@@ -627,19 +627,46 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   overflow: hidden;
 }
 
+/* Der Wechsel läuft in zwei Ebenen, nicht als eine Blende.
+
+   Vorher lag beides auf derselben Kurve: --ease ist eine
+   Ausklingkurve und legt den Großteil der Änderung in die ersten
+   ~250ms — gemessen war nach 90ms bereits ein Drittel umgeblendet.
+   Dazu stand die Summe beider Deckungen konstant bei 1.00, beide
+   Titel schwebten also gleichzeitig halbdurchsichtig übereinander.
+   Das liest das Auge als Schnitt mit Geisterbild.
+
+   Jetzt: das BILD blendet lang und gleichmäßig (linear, 1.1s), der
+   TEXT geht vorher schnell weg und kommt danach neu herein. So
+   überlagern sich nie zwei Schriften. */
 .hero-slide {
   position: absolute; inset: 0;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity 1.1s linear;
 }
 .hero-slide.active { opacity: 1; pointer-events: auto; }
 
+/* Die abtretende Folie: Text zuerst raus, kürzer als die Bildblende,
+   damit er verschwunden ist, bevor der neue erscheint. */
+.hero-slide:not(.active) .hero-content {
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 0.28s ease-in, transform 0.28s ease-in;
+}
+
+/* Die langsame Fahrt lief bisher in ALLEN Folien gleichzeitig ab —
+   die Regel darunter setzte zwar `running` für die aktive, ein
+   `paused` für die inaktiven gab es aber nirgends (gemessen: beide
+   play-state "running"). Nach 18s standen dadurch alle Bilder am
+   Endpunkt still, und spätere Wechsel zeigten ein unbewegtes Bild.
+   Jetzt ist es umgekehrt herum verankert: angehalten ist der
+   Normalfall, nur die sichtbare Folie fährt. */
 .hero-bg {
   position: absolute; inset: 0;
   background-size: cover; background-position: center 16%;
   transform: scale(1.06);
-  animation: kenburns 18s ease-out both;
+  animation: kenburns 18s ease-out both paused;
 }
 .hero-slide.active .hero-bg { animation-play-state: running; }
 
@@ -669,17 +696,39 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
       transparent 62%);
 }
 
+/* Keine Animation am Container: `heroIn ... both` hielt hier
+   opacity auf dem Animationswert fest, und ein Animationswert
+   schlägt jede normale Deklaration. Das Ausblenden der abtretenden
+   Folie (.hero-slide:not(.active) .hero-content) konnte deshalb nie
+   greifen — gemessen liefen beide Texte exakt parallel zur Bildblende.
+   Der Einlauf sitzt jetzt an den einzelnen Zeilen, siehe unten. */
 .hero-content {
   position: relative; z-index: 2;
   display: flex; flex-direction: column; justify-content: flex-end;
   height: 100%;
   padding: 0 44px 62px;
   max-width: 660px;
-  animation: heroIn 0.75s var(--ease) both;
 }
-@keyframes heroIn {
-  from { opacity: 0; transform: translateY(22px); }
-  to { opacity: 1; transform: none; }
+
+/* Der Text der ankommenden Folie setzt erst ein, wenn das Bild schon
+   zu zwei Dritteln steht (0.34s Verzug bei 1.1s Blende). Die Zeilen
+   folgen kurz versetzt aufeinander — das ist der Teil, der den
+   Wechsel getragen wirken lässt statt geschnitten.
+
+   Als eigene Animation und nicht als Transition, damit sie bei jedem
+   Wechsel neu anläuft; goTo() erzwingt dafür einen Reflow. */
+.hero-slide.active .hero-content > * {
+  animation: heroLineIn 0.62s cubic-bezier(0.16, 0.84, 0.28, 1) both;
+}
+.hero-slide.active .hero-badge    { animation-delay: 0.34s; }
+.hero-slide.active .hero-content h2 { animation-delay: 0.40s; }
+.hero-slide.active .hero-facts    { animation-delay: 0.46s; }
+.hero-slide.active .hero-overview { animation-delay: 0.52s; }
+.hero-slide.active .hero-actions  { animation-delay: 0.58s; }
+
+@keyframes heroLineIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
 }
 
 .hero-badge {

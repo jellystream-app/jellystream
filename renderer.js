@@ -1050,7 +1050,25 @@ function buildHeroSlider(items) {
     const bullets = dots.querySelectorAll('.hero-dot');
     index = (next + slides.length) % slides.length;
 
-    slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+    slides.forEach((slide, i) => {
+      const wirdAktiv = i === index;
+
+      /* Die Zeilen laufen als CSS-Animation ein. Eine Animation
+         startet nur bei einem Klassenwechsel neu — beim zweiten
+         Durchlauf traegt dieselbe Folie die Klasse aber schon
+         einmal getragen. Ohne Reflow bliebe der Text dann einfach
+         stehen und der Wechsel saehe wieder wie ein Schnitt aus. */
+      if (wirdAktiv && !slide.classList.contains('active')) {
+        const inhalt = slide.querySelector('.hero-content');
+        if (inhalt) {
+          inhalt.style.animation = 'none';
+          void inhalt.offsetWidth;
+          inhalt.style.animation = '';
+        }
+      }
+
+      slide.classList.toggle('active', wirdAktiv);
+    });
     bullets.forEach((dot, i) => {
       dot.classList.remove('active');
       // Reflow erzwingen, damit die Fortschritts-Animation neu startet
