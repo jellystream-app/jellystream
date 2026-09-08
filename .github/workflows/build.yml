@@ -7,6 +7,14 @@ name: Build
 # Actions baut daraufhin Windows und Linux und hängt alle Pakete an
 # ein Release — samt latest.yml, ohne die der Updater nichts findet.
 #
+# Das `version`-Script in der package.json baut dabei web/ neu UND
+# reicht die Nummer nach android/app/build.gradle durch. Letzteres
+# fehlte bis 2.13.1: Die Datei ist versioniert und trägt versionCode
+# und versionName, wurde aber nur beiläufig beim nächsten
+# `mobile:build` angepasst. Blieb das aus, baute die APK mit der
+# Nummer der Vorversion — und Android verweigert ein Update auf einen
+# gleich hohen versionCode, also käme sie auf dem Telefon nie an.
+#
 # Wer lieber im Browser arbeitet: ein dort veröffentlichtes Release
 # löst denselben Ablauf aus (release/published). Ein über die
 # Weboberfläche angelegtes Release erzeugt KEIN push-Ereignis, deshalb

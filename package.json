@@ -37,7 +37,7 @@
     "test:www": "electron tools/test-www.js",
     "test:web": "electron tools/test-web.js",
     "web:build": "node tools/build-web.js",
-    "version": "npm run web:build && git add web",
+    "version": "npm run web:build && npm run mobile:build && git add web android/app/build.gradle",
     "test:music": "electron tools/test-music.js",
     "test:hero": "electron tools/test-hero.js"
   },
