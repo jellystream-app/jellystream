@@ -12,6 +12,9 @@
 
 :root {
   --bg: #0a0e14;
+  /* Derselbe Ton als Komponenten: Verlaeufe brauchen ihn mit Alpha
+     (rgba(var(--bg-rgb), 0.4)) — mit #rrggbb ginge das nicht. */
+  --bg-rgb: 10, 14, 20;
   --bg-2: #0f1620;
   --surface: #141c28;
   --surface-2: #1a2432;
@@ -312,9 +315,21 @@ button { background: none; border: none; cursor: pointer; }
   margin-bottom: 16px;
 }
 .m-detail-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Zwischenstufen statt einer geraden Rampe: ohne sie legt der Browser
+   eine gleichmaessige Blende, die als sichtbares Band endet. Die Farbe
+   kommt aus --bg-rgb, damit jedes Theme in seinen eigenen Grundton
+   ausblendet statt in den dunkelblauen der Voreinstellung. */
 .m-detail-hero::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(to top, var(--bg) 2%, transparent 60%);
+  background: linear-gradient(to top,
+    rgb(var(--bg-rgb)) 0%,
+    rgba(var(--bg-rgb),0.98) 6%,
+    rgba(var(--bg-rgb),0.88) 14%,
+    rgba(var(--bg-rgb),0.66) 24%,
+    rgba(var(--bg-rgb),0.40) 34%,
+    rgba(var(--bg-rgb),0.18) 45%,
+    rgba(var(--bg-rgb),0.05) 54%,
+    transparent 66%);
 }
 
 .m-detail-body { padding: 0 16px; }

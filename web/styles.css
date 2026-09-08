@@ -3419,3 +3419,15 @@ a.lang-author:hover {
   .artist-portrait { width: 130px; }
   .artist-bio { -webkit-line-clamp: 3; }
 }
+
+/* ==================================================================
+   WEB-FASSUNG — angehaengt von tools/build-web.js
+
+   Im Browser gibt es kein eigenes Fenster: die selbstgezeichnete
+   Titelleiste haette nichts zu steuern. Sie wird ausgeblendet, und
+   --tb-height faellt auf 0 — das gesamte Layout rechnet mit dieser
+   Variablen (inset, margin-top, calc(100vh - ...)), deshalb genuegt
+   dieser eine Wert, statt jede Regel einzeln anzufassen.
+   ================================================================== */
+html.is-web { --tb-height: 0px; }
+html.is-web .titlebar { display: none; }

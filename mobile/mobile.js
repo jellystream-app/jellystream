@@ -445,6 +445,10 @@ function openItem(item) {
     case 'Season':
       navigate(() => showDetail({ Id: item.SeriesId, Name: item.SeriesName, Type: 'Series' }));
       break;
+    /* Bewusst anders als am Desktop: dort trennen Play- und Info-Knopf
+       auf der Kachel die beiden Wege, hier gibt es nur die eine Geste.
+       Ein Tippen soll abspielen — der Umweg ueber die Infoseite waere
+       gerade bei "Weiterschauen" ein Schritt zu viel. */
     case 'Episode':
       playVideo(item);
       break;
