@@ -887,6 +887,73 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 .grid.posters { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
 .grid.squares { grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); }
 
+/* ============ LIVE TV: KANÄLE ============
+   Eine Zeile pro Sender statt einer Bildkachel: Ein Senderlogo ist
+   ein freistehendes Bild mit Rand, kein formatfüllendes Plakat. In
+   einer 16:9-Kachel würde es beschnitten oder verzerrt. */
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  padding-bottom: 14px;
+}
+.channel-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease),
+              transform 0.16s var(--ease);
+}
+.channel-card:hover {
+  background: var(--surface-2, rgba(255,255,255,0.05));
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.reduce-motion .channel-card:hover { transform: none; }
+
+.channel-logo {
+  width: 56px; height: 42px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+/* contain, nicht cover: das ganze Logo soll zu sehen sein */
+.channel-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.channel-initial { font-size: 1.1rem; font-weight: 700; color: var(--muted-2); }
+
+.channel-body { flex: 1; min-width: 0; }
+.channel-body strong {
+  display: block; font-size: 0.9rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.channel-body small {
+  display: block; margin-top: 2px;
+  color: var(--muted-2); font-size: 0.78rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.channel-quiet { opacity: 0.7; font-style: italic; }
+
+/* Die Nummer ist eine Zeichenkette („10.1" bei DVB) und steht vor
+   dem Namen, wie auf der Fernbedienung. */
+.channel-number {
+  display: inline-block; min-width: 2.1em; margin-right: 7px;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+
+.channel-bar {
+  display: block; margin-top: 7px; height: 3px;
+  border-radius: 2px; background: rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+.channel-bar i {
+  display: block; height: 100%;
+  background: var(--accent); border-radius: 2px;
+}
+
 /* Prime-Video-Kachel: 16:9-Bild, das beim Hovern aufklappt */
 .card {
   position: relative;
@@ -1509,6 +1576,28 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
   position: relative;
   padding: 9px 0;
   cursor: pointer;
+}
+
+/* ============ LIVE: was es nicht gibt, wird nicht angeboten ============
+   Ein Kanal hat keine Dauer und keine Stelle, an die man springen
+   koennte. Eine Leiste, die sich nicht bewegen laesst, und Knoepfe,
+   die nichts tun, sind schlechter als keine. */
+.is-live .vp-scrub { cursor: default; pointer-events: none; }
+.is-live .vp-track { opacity: 0.5; }
+.is-live .vp-knob,
+.is-live .vp-buffered,
+.is-live .vp-hover-time,
+.is-live #vp-chapter-marks { display: none; }
+.is-live #vp-back10,
+.is-live #vp-fwd10,
+.is-live #vp-chapters { display: none; }
+
+/* Die verstrichene Zeit heisst hier „Live" — in der Akzentfarbe,
+   damit klar ist, dass es keine Position ist. */
+.is-live #vp-current {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 .vp-track {
   position: relative;

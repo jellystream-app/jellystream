@@ -67,6 +67,10 @@ const vpCurrent = {
   /* Intro- und Outro-Marken, falls der Server sie kennt. Je
      { start, end } in Sekunden, sonst null. */
   segments: { intro: null, outro: null },
+
+  /* Fernsehkanal: laeuft weiter, ob wir zusehen oder nicht. Keine
+     Dauer, kein Suchlauf, kein Fortsetzen. */
+  live: false,
   maxBitrate: 0, // 0 = Originalqualität
   local: false,  // true, wenn aus einer heruntergeladenen Datei gespielt wird
 
@@ -105,6 +109,12 @@ function mediaDuration() {
 
 /** Springt an eine Stelle im Film — auch ueber die Grenze des Streams. */
 function seekTo(seconds) {
+  /* Im laufenden Fernsehen gibt es keine Stelle, an die man springen
+     koennte. Ohne diese Sperre wuerde jeder Pfeiltastendruck den
+     Stream neu anfordern — und der Kanal faengt einfach wieder jetzt
+     an, was aussieht wie ein Fehler. */
+  if (vpCurrent.live) return;
+
   const target = Math.max(0, seconds);
   const offset = vpCurrent.serverSeekOffset || 0;
 
@@ -280,12 +290,17 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false, play
 
   presence.start(item, kind);
 
+  /* Bei einem Fernsehkanal gibt es nichts zu spulen. Das dem Server
+     zu melden ist keine Schoenheitskorrektur: Andere Geraete steuern
+     die Sitzung ueber genau diese Angabe fern. */
+  const canSeek = !(kind === 'video' && vpCurrent.live);
+
   reportPlayback('', {
     ItemId: session.itemId,
     MediaSourceId: session.mediaSourceId,
     PlaySessionId: session.playSessionId,
     PlayMethod: isTranscoding ? 'Transcode' : 'DirectStream',
-    CanSeek: true,
+    CanSeek: canSeek,
     IsPaused: false
   });
 
@@ -308,7 +323,7 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false, play
       PositionTicks: Math.round(reportedPosition(kind, media) * TICKS_PER_SECOND),
       IsPaused: media.paused,
       PlayMethod: session.isTranscoding ? 'Transcode' : 'DirectStream',
-      CanSeek: true
+      CanSeek: canSeek
     });
   }, 10000);
 }
@@ -400,12 +415,23 @@ async function playVideo(item, siblings = [], options = {}) {
 
   if (local) return playLocalFile(item, local);
 
+  /* Ein Fernsehkanal laeuft weiter, ob wir zusehen oder nicht: keine
+     Dauer, kein Suchlauf, keine Position zum Fortsetzen. Der Player
+     muss das wissen, bevor er seine Leiste zeichnet. */
+  const isLive = item.Type === 'TvChannel' || Boolean(item.ChannelId && item.IsLiveStream);
+  vpCurrent.live = isLive;
+  vp.root.classList.toggle('is-live', isLive);
+
   vp.title.textContent = item.Name || t('player.play');
   vp.subtitle.textContent =
     item.Type === 'Episode'
       ? [item.SeriesName, item.SeasonName, item.IndexNumber != null ? t('detail.episode', { number: item.IndexNumber }) : '']
           .filter(Boolean).join(' · ')
-      : item.ProductionYear || '';
+      : isLive
+        /* Bei einem Kanal steht die laufende Sendung dort, wo sonst
+           das Jahr steht — das ist die Information, die zaehlt. */
+        ? [item.CurrentProgram?.Name, t('liveTv.live')].filter(Boolean).join(' · ')
+        : item.ProductionYear || '';
 
   vp.root.classList.remove('hidden');
   vp.loading.classList.remove('hidden');
@@ -488,16 +514,24 @@ async function playVideo(item, siblings = [], options = {}) {
   vpCurrent.segments = { intro: null, outro: null };
   resetSkip();
 
-  fetchMediaSegments(item.Id)
-    .then((segments) => {
-      if (vpCurrent.item?.Id !== item.Id) return;
-      vpCurrent.segments = segments;
-    })
-    .catch(() => {
-      /* fetchMediaSegments schluckt selbst; hier nur zur Sicherheit */
-    });
+  /* Ein Fernsehkanal hat kein Intro — die Frage danach waere eine
+     Anfrage, deren Antwort schon feststeht. */
+  if (!isLive) {
+    fetchMediaSegments(item.Id)
+      .then((segments) => {
+        if (vpCurrent.item?.Id !== item.Id) return;
+        vpCurrent.segments = segments;
+      })
+      .catch(() => {
+        /* fetchMediaSegments schluckt selbst; hier nur zur Sicherheit */
+      });
+  }
 
-  const resumeAt = prefs.resumePlayback ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0) : 0;
+  /* Live faengt immer jetzt an: eine gemerkte Position gehoerte zu
+     einer Sendung, die laengst vorbei ist. */
+  const resumeAt = !isLive && prefs.resumePlayback
+    ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0)
+    : 0;
   loadVideoSource(resumeAt);
 }
 
@@ -958,6 +992,11 @@ function closeVideo() {
   vpCurrent.segments = { intro: null, outro: null };
   resetSkip();
 
+  /* Sonst bliebe der naechste Film ohne Zeitleiste und ohne
+     Suchlauf — als waere er ein Fernsehkanal. */
+  vpCurrent.live = false;
+  vp.root.classList.remove('is-live');
+
   // Nach einer Offline-Wiedergabe die ausgeblendeten Knoepfe zurueckholen
   if (vpCurrent.local) {
     [vp.audio, vp.subs, vp.quality].forEach((btn) => btn?.classList.remove('hidden'));
@@ -1019,13 +1058,24 @@ vp.video.addEventListener('playing', () => vp.loading.classList.add('hidden'));
 vp.video.addEventListener('canplay', () => vp.loading.classList.add('hidden'));
 
 vp.video.addEventListener('loadedmetadata', () => {
-  vp.duration.textContent = formatTime(mediaDuration());
+  /* Ein Kanal hat keine Dauer. „0:00" dort waere falsch, ein Strich
+     ist ehrlich. */
+  vp.duration.textContent = vpCurrent.live ? '—' : formatTime(mediaDuration());
 });
 
 vp.video.addEventListener('timeupdate', () => {
   if (vpScrubbing) return;
   const position = mediaPosition();
   const total = mediaDuration();
+  /* Live: die verstrichene Zeit seit dem Einschalten ist keine
+     Position im Programm. Der Balken bliebe ohne Dauer ohnehin leer;
+     die Zeit dort waere aber eine Zahl, die etwas anderes behauptet. */
+  if (vpCurrent.live) {
+    vp.current.textContent = t('liveTv.live');
+    vp.progress.style.width = '100%';
+    return;
+  }
+
   vp.current.textContent = formatTime(position);
   if (total) vp.progress.style.width = `${(position / total) * 100}%`;
   updateSkip(position);
