@@ -298,6 +298,8 @@
     "settings.cardShapeHint": "Gilt für alle Reihen — hochkant zeigt Poster, quer die Szenenbilder",
     "settings.cardShapePoster": "Hochkant (Poster)",
     "settings.cardShapeWide": "Quer (Szenenbilder)",
+    "settings.cardShapePerLibrary": "Je Bibliothek — was hier nicht gesetzt ist, folgt der Einstellung oben.",
+    "settings.cardShapeInherit": "Wie oben",
     "settings.navLibraries": "Bibliotheken in der Navigation",
     "settings.navLibrariesHint": "Zeigt die Bibliotheken des Servers statt fester Reiter",
     "settings.reduceMotion": "Animationen reduzieren",

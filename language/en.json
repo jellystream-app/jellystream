@@ -298,6 +298,8 @@
     "settings.cardShapeHint": "Applies to every row — portrait shows posters, landscape the scene images",
     "settings.cardShapePoster": "Portrait (posters)",
     "settings.cardShapeWide": "Landscape (scene images)",
+    "settings.cardShapePerLibrary": "Per library — anything left unset follows the setting above.",
+    "settings.cardShapeInherit": "As above",
     "settings.navLibraries": "Libraries in the navigation",
     "settings.navLibrariesHint": "Shows the server's libraries instead of fixed tabs",
     "settings.reduceMotion": "Reduce animations",

@@ -51,7 +51,13 @@ const prefs = {
   /* --- Oberfläche --- */
   uiScale: 1,
   cardSize: 'normal',
-  cardShape: 'wide',   // wide | poster — Standard bleibt das Gewohnte
+  cardShape: 'wide',   // wide | poster — Standard fuer alle Bibliotheken
+
+  /* Kachelform je Bibliothek: { [libraryId]: 'wide' | 'poster' }.
+     Was hier nicht steht, folgt cardShape oben — der alte, globale
+     Wert bleibt damit der Standard, und gespeicherte Einstellungen
+     gelten unveraendert weiter. */
+  cardShapes: {},
   navFromLibraries: true,
   reduceMotion: false,
 
@@ -781,6 +787,7 @@ async function openSettings() {
   buildThemeGrid();
   buildAccentSwatches();
   renderSettingsServers();
+  renderCardShapeLibraries();
   buildSeekStepOptions();
   renderLanguageList();
 
@@ -1756,6 +1763,7 @@ function onLanguageChanged() {
   buildSeekStepOptions();
   if (typeof buildThemeGrid === 'function' && $('theme-grid')) buildThemeGrid();
   if (typeof renderSettingsServers === 'function' && $('settings-servers')) renderSettingsServers();
+  if (typeof renderCardShapeLibraries === 'function') renderCardShapeLibraries();
   refreshDownloadSettings();
 
   // Werte mit Einheiten neu formatieren
@@ -1769,6 +1777,107 @@ function onLanguageChanged() {
   if (typeof state !== 'undefined' && state.view && typeof navigate === 'function') {
     navigate(state.view, { push: false });
   }
+}
+
+/* ============ BAUSTEINE FÜR EINSTELLUNGSZEILEN ============
+   Eine neue Option kostete hier bisher vier Stellen: Standardwert,
+   HTML, Auslesen beim Öffnen, Zuhörer. Für feste Optionen geht das;
+   für Listen, deren Einträge erst der Server kennt — Bibliotheken,
+   Server, Plugins — braucht es sie gebaut.
+
+   Die mobile Fassung hat solche Bausteine längst (mobile/settings.js);
+   hier fehlten sie.
+   ========================================================== */
+
+/** Eine Einstellungszeile: Titel, Erklärung, Bedienelement rechts. */
+function settingRow({ label, hint, control }) {
+  const row = document.createElement('div');
+  row.className = 'setting-row';
+
+  const text = document.createElement('span');
+  text.innerHTML = `<strong>${escapeHtml(label)}</strong>${
+    hint ? `<small>${escapeHtml(hint)}</small>` : ''
+  }`;
+
+  row.appendChild(text);
+  row.appendChild(control);
+  return row;
+}
+
+/** Ein Auswahlfeld. `options` ist [{ value, label }]. */
+function selectControl({ options, value, onChange }) {
+  const select = document.createElement('select');
+  select.className = 'select-input';
+
+  options.forEach((option) => {
+    const node = document.createElement('option');
+    node.value = option.value;
+    node.textContent = option.label;
+    select.appendChild(node);
+  });
+
+  select.value = value;
+  select.addEventListener('change', (event) => onChange(event.target.value));
+  return select;
+}
+
+/* ============ KACHELFORM JE BIBLIOTHEK ============
+   Welche Bibliotheken es gibt, weiß erst der Server — die Liste
+   entsteht deshalb zur Laufzeit und wird nach jedem Sprachwechsel neu
+   gebaut (sonst bliebe sie in der alten Sprache stehen).
+   ================================================== */
+
+function renderCardShapeLibraries() {
+  const host = $('card-shape-libraries');
+  if (!host) return;
+
+  host.innerHTML = '';
+
+  /* Musikbibliotheken bleiben außen vor: Alben sind quadratisch, das
+     ist keine Frage des Geschmacks, sondern die Form der Sache.
+     Live TV zeigt Kanäle, keine Kacheln. */
+  const libraries = (typeof state !== 'undefined' ? state.libraries || [] : [])
+    .filter((library) => {
+      const type = String(library.CollectionType || '').toLowerCase();
+      return type !== 'music' && type !== 'livetv';
+    });
+
+  /* Nicht angemeldet, oder nichts, dessen Form man wählen könnte:
+     Dann ist die Liste eine leere Behauptung — besser nichts. */
+  if (!libraries.length) return;
+
+  const heading = document.createElement('p');
+  heading.className = 'settings-hint';
+  heading.textContent = t('settings.cardShapePerLibrary');
+  host.appendChild(heading);
+
+  const options = [
+    { value: '', label: t('settings.cardShapeInherit') },
+    { value: 'wide', label: t('settings.cardShapeWide') },
+    { value: 'poster', label: t('settings.cardShapePoster') }
+  ];
+
+  libraries.forEach((library) => {
+    const control = selectControl({
+      options,
+      value: prefs.cardShapes?.[library.Id] || '',
+      onChange: (value) => {
+        if (!prefs.cardShapes) prefs.cardShapes = {};
+
+        /* Leer heißt „wie die allgemeine Einstellung". Den Wert dann zu
+           speichern hieße, die Bibliothek für immer festzunageln —
+           eine spätere Änderung der allgemeinen Wahl ginge an ihr
+           vorbei. */
+        if (value) prefs.cardShapes[library.Id] = value;
+        else delete prefs.cardShapes[library.Id];
+
+        savePrefs();
+        if (typeof state !== 'undefined' && state.view) navigate(state.view, { push: false });
+      }
+    });
+
+    host.appendChild(settingRow({ label: library.Name, control }));
+  });
 }
 
 /* Sprungweite: die Einheit steckt im übersetzten Text, deshalb

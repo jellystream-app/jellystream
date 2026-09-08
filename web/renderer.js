@@ -227,9 +227,39 @@ function posterImageUrl(item) {
  *
  *  Was der Aufrufer ausdrücklich anfordert (square für Musik, poster
  *  für Posterreihen), bleibt in jedem Fall unangetastet. */
-function resolveShape(item, requested) {
+function resolveShape(item, requested, libraryId) {
   if (requested !== 'wide') return requested;
-  return (prefs.cardShape === 'poster') ? 'poster' : 'wide';
+  return shapeFor(libraryId);
+}
+
+/** Welche Form gilt in dieser Bibliothek?
+ *
+ *  prefs.cardShapes hält die Wahl je Bibliothek, prefs.cardShape die
+ *  für alles Übrige. Der alte, globale Wert bleibt damit der Standard —
+ *  wer nie etwas einstellt, merkt von der Neuerung nichts, und
+ *  gespeicherte Einstellungen gelten unverändert weiter. Deshalb
+ *  braucht es keine Umstellung alter Daten. */
+function shapeFor(libraryId) {
+  const own = libraryId && prefs.cardShapes ? prefs.cardShapes[libraryId] : null;
+  const shape = own || prefs.cardShape;
+  return shape === 'poster' ? 'poster' : 'wide';
+}
+
+/** Die Bibliothek zu einem Jellyfin-Bibliothekstyp.
+ *
+ *  Die Reihen der Startseite ziehen quer durch die Bibliotheken:
+ *  „Neue Filme" kommt aus der Filmbibliothek, „Neue Serien" aus der
+ *  Serienbibliothek. Damit sie deren Form uebernehmen, muss die Reihe
+ *  wissen, zu welcher sie gehoert.
+ *
+ *  Gibt es mehrere gleichen Typs, gilt die erste — eine Reihe kann nur
+ *  eine Form haben, und eine erfundene Rangfolge waere schlechter als
+ *  die des Servers. */
+function libraryIdByType(collectionType) {
+  const hit = (state.libraries || []).find(
+    (library) => String(library.CollectionType || '').toLowerCase() === collectionType
+  );
+  return hit?.Id || null;
 }
 
 // Jellyfin liefert ISO-639-2 (3-stellig); Intl erwartet 2-stellige Codes
@@ -498,8 +528,9 @@ function isDownloadable(item) {
 
 function buildCard(item, options = {}) {
   const { subtitle } = options;
-  // Die Einstellung entscheidet mit, ob quer oder hochkant gezeigt wird
-  const shape = resolveShape(item, options.shape || 'wide');
+  /* Die Einstellung entscheidet mit, ob quer oder hochkant gezeigt
+     wird — je Bibliothek, sonst die allgemeine Wahl. */
+  const shape = resolveShape(item, options.shape || 'wide', options.libraryId);
 
   const card = document.createElement('article');
   card.className = `card ${shape === 'poster' ? 'poster' : shape === 'square' ? 'square' : ''}`;
@@ -862,11 +893,11 @@ function skeletonCards(count = 12, shape = 'wide') {
   return `<div class="sk-grid">${cards}</div>`;
 }
 
-function skeletonRows(rows = 3) {
+function skeletonRows(rows = 3, libraryId = null) {
   /* Die Platzhalter müssen die Form der späteren Kacheln haben —
      sonst springt das Layout in dem Moment, in dem die Daten
      eintreffen. */
-  const shape = prefs.cardShape === 'poster' ? 'poster' : 'wide';
+  const shape = shapeFor(libraryId);
 
   return Array.from({ length: rows }, () => `
     <div class="sk-row">
@@ -963,11 +994,21 @@ async function showHome() {
     if (pool.length) el.viewRoot.appendChild(buildHeroSlider(pool));
     else setTopGap(true);
 
+    /* Jede Reihe folgt der Bibliothek, aus der sie kommt: „Neue Filme"
+       der Filmbibliothek, „Neue Serien" der Serienbibliothek. Wer dort
+       Poster eingestellt hat, sieht sie auch auf der Startseite.
+
+       „Weiterschauen", „Als Nächstes" und „Meine Liste" mischen Filme
+       und Folgen aus allen Bibliotheken — sie koennen keiner einzelnen
+       folgen und behalten die allgemeine Wahl. */
+    const movieLib = libraryIdByType('movies');
+    const seriesLib = libraryIdByType('tvshows');
+
     const rows = [
       buildRow(t('home.resume'), resume?.Items || [], { onDismiss: true }),
-      buildRow(t('home.nextUp'), nextUp?.Items || []),
-      buildRow(t('home.newMovies'), movies),
-      buildRow(t('home.newSeries'), series),
+      buildRow(t('home.nextUp'), nextUp?.Items || [], { libraryId: seriesLib }),
+      buildRow(t('home.newMovies'), movies, { libraryId: movieLib }),
+      buildRow(t('home.newSeries'), series, { libraryId: seriesLib }),
       buildRow(t('home.favoritesRow'), favorites?.Items || [])
     ].filter(Boolean);
 
@@ -1177,7 +1218,9 @@ async function loadCatalogPage() {
     if (grid) {
       grid.querySelectorAll('.sk-card').forEach((node) => node.remove());
       const fragment = document.createDocumentFragment();
-      batch.forEach((item) => fragment.appendChild(buildCard(item, { shape: catalog.shape })));
+      batch.forEach((item) => fragment.appendChild(
+        buildCard(item, { shape: catalog.shape, libraryId: catalog.parentId })
+      ));
       grid.appendChild(fragment);
     }
 
@@ -1269,7 +1312,7 @@ function renderCatalogShell(genres) {
 function catalogGridClass() {
   if (catalog.shape === 'square') return 'squares';
   if (catalog.shape === 'poster') return 'posters';
-  return prefs.cardShape === 'poster' ? 'posters' : '';
+  return shapeFor(catalog.parentId) === 'poster' ? 'posters' : '';
 }
 
 function wireCatalogControls() {
@@ -1386,7 +1429,10 @@ async function openCatalog({ title, types = null, parentId = null, shape = 'wide
 
   if (catalog.observer) catalog.observer.disconnect();
 
-  el.viewRoot.innerHTML = skeletonCards(12, shape);
+  /* Auch die Platzhalter tragen die Form dieser Bibliothek — sonst
+     stehen 12 Querformat-Kacheln, die im Moment der Daten alle
+     hochkant werden. */
+  el.viewRoot.innerHTML = skeletonCards(12, resolveShape(null, shape, parentId));
 
   // Genres für den Filter — schlägt das fehl, läuft die Ansicht ohne weiter
   let genres = [];

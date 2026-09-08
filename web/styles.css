@@ -2153,6 +2153,17 @@ video::cue {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* Kachelform je Bibliothek: eingerückt unter der allgemeinen Wahl,
+   damit sichtbar ist, dass sie diese nur verfeinert. */
+.shape-libraries {
+  margin: 2px 0 4px 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+.shape-libraries .settings-hint { margin: 10px 0 2px; }
+.shape-libraries .setting-row { padding: 9px 0; border-bottom: none; }
+.shape-libraries .setting-row strong { font-weight: 500; }
+
 .settings-servers { display: grid; gap: 9px; }
 .settings-server-row {
   display: flex; align-items: center; gap: 12px;
