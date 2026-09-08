@@ -1127,7 +1127,9 @@ const SORTS = [
 ];
 
 const catalog = {
-  title: '', types: 'Movie,Series', parentId: null, shape: 'wide',
+  /* types === null heißt „kein Typ-Filter" — openCatalog() überschreibt
+     das ohnehin bei jedem Aufruf. */
+  title: '', types: null, parentId: null, shape: 'wide',
   sort: 'SortName-Ascending', filter: '', genre: '',
   items: [], total: 0, loading: false, done: false, observer: null
 };
@@ -1137,7 +1139,6 @@ let catalogOutsideClick = null;
 function catalogQuery(startIndex) {
   const [sortBy, sortOrder] = catalog.sort.split('-');
   const params = {
-    IncludeItemTypes: catalog.types,
     Recursive: 'true',
     SortBy: sortBy,
     SortOrder: sortOrder,
@@ -1145,6 +1146,12 @@ function catalogQuery(startIndex) {
     StartIndex: String(startIndex),
     Limit: String(PAGE_SIZE)
   };
+
+  /* Ohne Typ-Filter liefert der Server, was im Ordner liegt. Genau so
+     gewollt bei unbekanntem Bibliothekstyp — ein leerer String oder
+     ein "null" im Parameter würde dagegen alles herausfiltern. */
+  if (catalog.types) params.IncludeItemTypes = catalog.types;
+
   if (catalog.parentId) params.ParentId = catalog.parentId;
   if (catalog.filter) params.Filters = catalog.filter;
   if (catalog.genre) params.Genres = catalog.genre;
@@ -1367,7 +1374,7 @@ function restartCatalog() {
   loadCatalogPage();
 }
 
-async function openCatalog({ title, types, parentId = null, shape = 'wide', filter = '', genre = '' }) {
+async function openCatalog({ title, types = null, parentId = null, shape = 'wide', filter = '', genre = '' }) {
   setTopGap(true);
   newToken('catalog');
 
@@ -1424,12 +1431,27 @@ function showLibrary(library) {
     btn.classList.toggle('active', btn.dataset.library === library.Id);
   });
 
-  const isMusic = library.CollectionType === 'music';
+  /* Was in dieser Bibliothek liegt, weiß Jellyfin — nicht wir. Früher
+     stand hier `Movie,Series` für alles außer Musik; „Hörbücher",
+     „Fotos" oder gemischte Ordner blieben deshalb leer, obwohl sie
+     voll waren. libraryKind() liefert die passenden Typen und lässt
+     den Filter bei unbekanntem Typ bewusst weg. */
+  const kind = libraryKind(library);
+
+  /* Nur die Form, die sich aus der Sache ergibt, wird hier gesetzt:
+     Alben sind quadratisch. Ob Filme hochkant oder quer erscheinen,
+     entscheidet weiter die Einstellung des Nutzers über resolveShape()
+     — `kind.shape` sagt zwar, was zum Inhalt passen würde, aber diese
+     Wahl bekommt der Nutzer erst mit der Kachelform je Bibliothek.
+     Sie ihm hier vorwegzunehmen, würde seine heutige Einstellung
+     stillschweigend übergehen. */
+  const shape = kind.shape === 'square' ? 'square' : 'wide';
+
   return openCatalog({
     title: library.Name,
-    types: isMusic ? 'MusicAlbum' : 'Movie,Series',
+    types: kind.types,
     parentId: library.Id,
-    shape: isMusic ? 'square' : 'wide'
+    shape
   });
 }
 
@@ -2841,7 +2863,12 @@ function applyNavMode() {
 
 async function loadLibraries() {
   try {
-    const data = await api(`/Users/${state.userId}/Views`);
+    /* /UserViews statt /Users/{id}/Views: Letzteres ist in Jellyfin
+       10.10 als veraltet markiert und aus der API-Beschreibung
+       ausgeblendet. Es antwortet weiterhin, aber auf einem Pfad zu
+       bauen, den der Server selbst als überholt führt, verschiebt das
+       Problem nur. */
+    const data = await api(`/UserViews?userId=${encodeURIComponent(state.userId)}`);
     state.libraries = data.Items || [];
 
     applyNavMode();

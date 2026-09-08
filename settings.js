@@ -343,22 +343,62 @@ function saveServers(servers) {
   }
 }
 
-// Ein Eintrag pro Server+Benutzer — derselbe Server mit zwei Konten ist erlaubt
+/* Ein Eintrag pro Server+Benutzer — derselbe Server mit zwei Konten ist
+   erlaubt.
+
+   Gibt den zusammengefuehrten Eintrag zurueck: Beim erneuten Anmelden
+   an einem bereits bekannten Server bringt der Aufrufer nur die
+   frischen Anmeldedaten mit. Was schon gespeichert war — etwa ein
+   eigener Name — steckt allein im Ergebnis. */
 function rememberServer(entry) {
   const servers = loadServers();
   const index = servers.findIndex(
     (s) => s.serverUrl === entry.serverUrl && s.userId === entry.userId
   );
-  if (index >= 0) servers[index] = { ...servers[index], ...entry };
-  else servers.push(entry);
+
+  const merged = index >= 0 ? { ...servers[index], ...entry } : entry;
+  if (index >= 0) servers[index] = merged;
+  else servers.push(merged);
+
   saveServers(servers);
   renderServerList();
+  return merged;
 }
 
 function forgetServer(serverUrl, userId) {
   saveServers(loadServers().filter((s) => !(s.serverUrl === serverUrl && s.userId === userId)));
   renderServerList();
   renderSettingsServers();
+}
+
+/** Gibt einem Server einen eigenen Namen — oder nimmt ihn zurueck.
+ *
+ *  `customName` steht bewusst NEBEN `serverName` statt an dessen
+ *  Stelle: Der vom Server gemeldete Name bleibt erhalten, damit ein
+ *  leeres Feld wieder zu ihm zurueckfuehrt. Ueberschreiben hiesse, den
+ *  Weg zurueck zu verlieren. */
+function renameServer(serverUrl, userId, name) {
+  const servers = loadServers();
+  const entry = servers.find((s) => s.serverUrl === serverUrl && s.userId === userId);
+  if (!entry) return;
+
+  const trimmed = String(name || '').trim();
+  if (trimmed) entry.customName = trimmed;
+  else delete entry.customName;
+
+  saveServers(servers);
+  renderServerList();
+  renderSettingsServers();
+}
+
+/** Wie dieser Server heisst — eigener Name, sonst der des Servers,
+ *  sonst die Adresse. Eine Stelle fuer alle Anzeigeorte: Server-Liste
+ *  im Profilmenue, Einstellungen und Meldungen sollen nicht
+ *  auseinanderlaufen. */
+function serverLabel(entry) {
+  return entry?.customName
+    || entry?.serverName
+    || serverHost(entry?.serverUrl);
 }
 
 /** Adresse eines Servers kurz: Host und Port, ohne Schema.
@@ -419,7 +459,7 @@ function renderServerList() {
 
     /* Servername UND Adresse: derselbe Name kann auf zwei Maschinen
        liegen, dann ist die Adresse das Unterscheidende. */
-    const place = [entry.serverName, serverHost(entry.serverUrl)]
+    const place = [serverLabel(entry), serverHost(entry.serverUrl)]
       .filter(Boolean)
       .filter((part, index, all) => all.indexOf(part) === index)
       .join(' · ');
@@ -477,7 +517,14 @@ async function switchToServer(entry) {
   }
 
   await enterApp();
-  toast(t('server.switched', { name: entry.username }));
+
+  /* Benutzer UND Server: Wer denselben Namen auf zwei Servern hat,
+     erfuhr aus „Gewechselt zu Jason" nicht, wo er gelandet ist. Genau
+     dafuer gibt es die eigenen Namen. */
+  const label = serverLabel(entry);
+  toast(t('server.switched', {
+    name: label && label !== entry.username ? `${entry.username} · ${label}` : entry.username
+  }));
 }
 
 /* --- Dialog "Server hinzufügen" --- */
@@ -531,7 +578,10 @@ $('server-form').addEventListener('submit', async (event) => {
       /* Name ist optional */
     }
 
-    rememberServer({
+    /* Der zusammengefuehrte Eintrag traegt einen bereits vergebenen
+       eigenen Namen mit — ein erneutes Anmelden soll ihn nicht
+       vergessen. */
+    const remembered = rememberServer({
       serverUrl: activeUrl,
       serverName,
       userId: auth.userId,
@@ -540,10 +590,7 @@ $('server-form').addEventListener('submit', async (event) => {
     });
 
     $('server-modal').classList.add('hidden');
-    await switchToServer({
-      serverUrl: activeUrl, serverName, userId: auth.userId,
-      username: auth.userName, token: auth.accessToken
-    });
+    await switchToServer(remembered);
   } catch (error) {
     errorBox.textContent = error.message || t('login.failed');
   } finally {
@@ -664,15 +711,60 @@ function renderSettingsServers() {
     const isActive = entry.serverUrl === state.serverUrl && entry.userId === state.userId;
     const row = document.createElement('div');
     row.className = 'settings-server-row';
+    /* Der eigene Name steht oben, die Adresse darunter. Wer umbenennt,
+       tut das ja gerade, weil ihm „192.168.1.40:8096" nichts sagt —
+       aber unterscheiden muss er zwei Server trotzdem koennen. */
     row.innerHTML = `
       ${avatarMarkup(entry, 32, `server-face ${isActive ? '' : 'dim'}`)}
       <span class="server-meta">
-        <strong>${escapeHtml(entry.serverName || serverHost(entry.serverUrl))}</strong>
+        <strong>${escapeHtml(serverLabel(entry))}</strong>
         <small>${escapeHtml(entry.username)} · ${escapeHtml(serverHost(entry.serverUrl))}${isActive ? ` · ${escapeHtml(t('server.active'))}` : ''}</small>
       </span>
+      <span class="field-input server-rename hidden">
+        <input type="text"
+               value="${escapeHtml(entry.customName || '')}"
+               placeholder="${escapeHtml(entry.serverName || serverHost(entry.serverUrl))}"
+               aria-label="${escapeHtml(t('server.renameAria'))}" />
+      </span>
+      <button class="rename-server" type="button" title="${escapeHtml(t('server.rename'))}" aria-label="${escapeHtml(t('server.renameAria'))}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
       <button class="remove-server" type="button" title="${escapeHtml(t('common.remove'))}" aria-label="${escapeHtml(t('server.removeAria'))}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>`;
+
+    const nameField = row.querySelector('.server-rename');
+    const nameBox = nameField.querySelector('input');
+    const meta = row.querySelector('.server-meta');
+
+    /* Uebernehmen und zurueck in die Anzeige. renameServer() zeichnet
+       die Liste neu — deshalb steht danach nichts mehr, was aufgeraeumt
+       werden muesste. */
+    const commit = () => {
+      renameServer(entry.serverUrl, entry.userId, nameBox.value);
+      toast(nameBox.value.trim() ? t('server.renamed') : t('server.renameReset'));
+    };
+
+    row.querySelector('.rename-server').addEventListener('click', () => {
+      const editing = !nameField.classList.contains('hidden');
+      if (editing) return commit();
+
+      nameField.classList.remove('hidden');
+      meta.classList.add('hidden');
+      nameBox.focus();
+      nameBox.select();
+    });
+
+    nameBox.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commit();
+      } else if (event.key === 'Escape') {
+        /* Abbrechen heisst: nichts speichern. Neu zeichnen stellt den
+           vorigen Stand wieder her. */
+        renderSettingsServers();
+      }
+    });
 
     row.querySelector('.remove-server').addEventListener('click', () => {
       if (isActive) return toast(t('server.cannotRemoveActive'), true);

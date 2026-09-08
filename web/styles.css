@@ -2170,6 +2170,27 @@ video::cue {
 .settings-server-row .remove-server:hover { color: var(--danger); background: rgba(255,107,107,0.12); }
 .settings-server-row .remove-server svg { width: 17px; height: 17px; }
 
+/* Umbenennen: der Stift sitzt neben dem Kreuz und verhaelt sich
+   genauso — nur ohne die Warnfarbe, denn er zerstoert nichts. */
+.settings-server-row .rename-server {
+  color: var(--muted-2);
+  padding: 6px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.settings-server-row .rename-server:hover { color: var(--accent); background: rgba(255,255,255,0.07); }
+.settings-server-row .rename-server svg { width: 16px; height: 16px; }
+
+/* Das Feld nimmt den Platz ein, den sonst Name und Adresse belegen —
+   deshalb dieselbe flex-Aufteilung wie .server-meta. */
+.settings-server-row .server-rename { flex: 1; min-width: 0; }
+.settings-server-row .server-rename input {
+  width: 100%;
+  padding: 7px 0;
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
 .about-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
