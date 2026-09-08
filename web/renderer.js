@@ -43,6 +43,12 @@ const state = {
   userId: '',
   username: '',
   libraries: [],
+
+  /* Abschnitte der Startseite, wie sie im Jellyfin stehen. Nur
+     gefüllt, wenn der Aufbau vom Server gelten soll — sonst leer, und
+     dann gilt die Reihenfolge von Jellystream. */
+  homeSections: [],
+
   view: null,
   history: []
 };
@@ -952,6 +958,59 @@ el.backBtn.addEventListener('click', () => {
   if (previous) navigate(previous, { push: false });
 });
 
+/* Die Reihen der Startseite, in der Reihenfolge von Jellystream.
+   Das war bisher ein festes Array mitten in showHome(). */
+const HOME_ROWS = ['resume', 'nextup', 'latestmovies', 'latestseries', 'favorites'];
+
+/* Wie Jellyfins Abschnitte auf unsere Reihen zeigen.
+
+   `latestmedia` ist bei Jellyfin EIN Abschnitt über alle Bibliotheken;
+   bei uns sind Filme und Serien getrennte Reihen. Ein Abschnitt wird
+   deshalb zu zwei — das ist näher an der Absicht („zeig mir Neues")
+   als eine der beiden weglassen.
+
+   Nicht aufgeführt und damit übersprungen: `librarybuttons` und
+   `smalllibrarytiles` (dafür gibt es die Navigationsleiste),
+   `resumebook` (keine Bücher), `activerecordings` und `livetv`
+   (Aufnahmen und Programm zeigen wir auf der Startseite nicht),
+   `none` (ein leerer Platz). Übersprungen statt geraten: Was wir
+   nicht können, soll nicht falsch erscheinen. */
+const JELLYFIN_HOME_MAP = {
+  resume: ['resume'],
+  resumeaudio: [],
+  nextup: ['nextup'],
+  latestmedia: ['latestmovies', 'latestseries']
+};
+
+/** In welcher Reihenfolge stehen die Reihen der Startseite?
+ *
+ *  Standard ist die von Jellystream. Auf Wunsch die des Servers —
+ *  gelesen beim Anmelden und in state.homeSections abgelegt, damit
+ *  jeder Aufbau der Startseite nicht erneut fragen muss. */
+function homeRowOrder() {
+  if (prefs.structureFrom !== 'jellyfin') return HOME_ROWS.slice();
+
+  const sections = state.homeSections || [];
+  if (!sections.length) return HOME_ROWS.slice();
+
+  const order = [];
+  sections.forEach((section) => {
+    (JELLYFIN_HOME_MAP[section] || []).forEach((key) => {
+      if (!order.includes(key)) order.push(key);
+    });
+  });
+
+  /* „Meine Liste" hat bei Jellyfin keinen Abschnitt. Sie hinten
+     anzuhängen ist besser, als sie verschwinden zu lassen: Der Nutzer
+     hat den Aufbau abgeglichen, nicht Reihen abbestellt. */
+  if (!order.includes('favorites')) order.push('favorites');
+
+  /* Ergäbe die Zuordnung nichts — etwa weil der Nutzer nur Abschnitte
+     gewählt hat, die wir nicht zeigen —, wäre die Startseite leer.
+     Dann ist die eigene Reihenfolge das kleinere Übel. */
+  return order.length > 1 ? order : HOME_ROWS.slice();
+}
+
 async function showHome() {
   setActiveNav('home');
   setTopGap(false);
@@ -1004,13 +1063,21 @@ async function showHome() {
     const movieLib = libraryIdByType('movies');
     const seriesLib = libraryIdByType('tvshows');
 
-    const rows = [
-      buildRow(t('home.resume'), resume?.Items || [], { onDismiss: true }),
-      buildRow(t('home.nextUp'), nextUp?.Items || [], { libraryId: seriesLib }),
-      buildRow(t('home.newMovies'), movies, { libraryId: movieLib }),
-      buildRow(t('home.newSeries'), series, { libraryId: seriesLib }),
-      buildRow(t('home.favoritesRow'), favorites?.Items || [])
-    ].filter(Boolean);
+    /* Die Reihen, die Jellystream selbst kennt — je Bauart einmal.
+       Aus dieser Zuordnung entsteht sowohl die eigene Reihenfolge als
+       auch die des Servers; so kann keine Reihe in einem der beiden
+       Wege fehlen. */
+    const builders = {
+      resume: () => buildRow(t('home.resume'), resume?.Items || [], { onDismiss: true }),
+      nextup: () => buildRow(t('home.nextUp'), nextUp?.Items || [], { libraryId: seriesLib }),
+      latestmovies: () => buildRow(t('home.newMovies'), movies, { libraryId: movieLib }),
+      latestseries: () => buildRow(t('home.newSeries'), series, { libraryId: seriesLib }),
+      favorites: () => buildRow(t('home.favoritesRow'), favorites?.Items || [])
+    };
+
+    const rows = homeRowOrder()
+      .map((key) => builders[key]?.())
+      .filter(Boolean);
 
     if (!rows.length && !pool.length) {
       showEmpty(t('home.noMedia'));
@@ -3024,6 +3091,24 @@ async function loadLibraries() {
        Problem nur. */
     const data = await api(`/UserViews?userId=${encodeURIComponent(state.userId)}`);
     state.libraries = data.Items || [];
+
+    /* Auf Wunsch gilt der Aufbau, der im Jellyfin eingestellt ist:
+       Reihenfolge der Bibliotheken, ausgeblendete, Abschnitte der
+       Startseite. Nur lesen — geschrieben wird nichts, siehe
+       core/libsync.js.
+
+       Scheitert das, bleibt es beim eigenen Aufbau. Ein Abgleich, der
+       nicht klappt, darf die Navigation nicht leeren. */
+    if (prefs.structureFrom === 'jellyfin') {
+      const [order, home] = await Promise.all([
+        fetchViewOrder(),
+        fetchHomeSections()
+      ]);
+      state.libraries = applyViewOrder(state.libraries, order);
+      state.homeSections = home.sections;
+    } else {
+      state.homeSections = [];
+    }
 
     applyNavMode();
 

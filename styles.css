@@ -2253,6 +2253,40 @@ video::cue {
 .shape-libraries .setting-row { padding: 9px 0; border-bottom: none; }
 .shape-libraries .setting-row strong { font-weight: 500; }
 
+/* Rueckmeldung der beiden Abgleich-Knoepfe. Steht nichts an, nimmt
+   sie keinen Platz ein. */
+.sync-status {
+  font-size: 0.79rem;
+  color: var(--muted-2);
+  line-height: 1.45;
+}
+.sync-status:empty { display: none; }
+.sync-status.ok { color: var(--accent); }
+.sync-status.bad { color: var(--danger); }
+
+/* Plugin-Liste: Name und Fassung links, was Jellystream davon nutzt
+   rechts. */
+.settings-plugins { display: grid; gap: 8px; }
+.plugin-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 13px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.plugin-meta { flex: 1; min-width: 0; }
+.plugin-meta strong {
+  display: block; font-size: 0.86rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.plugin-meta small { display: block; color: var(--muted-2); font-size: 0.75rem; }
+.plugin-use {
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  color: var(--muted-2);
+}
+.plugin-use.used { color: var(--accent); font-weight: 600; }
+
 .settings-servers { display: grid; gap: 9px; }
 .settings-server-row {
   display: flex; align-items: center; gap: 12px;

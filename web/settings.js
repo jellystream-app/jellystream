@@ -61,6 +61,11 @@ const prefs = {
   navFromLibraries: true,
   reduceMotion: false,
 
+  /* Woher der Aufbau kommt: 'jellystream' (feste Reiter und Reihen,
+     wie bisher) oder 'jellyfin' (Reihenfolge und Abschnitte, wie im
+     Jellyfin eingestellt). Standard bleibt das Gewohnte. */
+  structureFrom: 'jellystream',
+
   /* --- Downloads --- */
   dlQuality: 'ask',
   dlDeleteWatched: false,
@@ -782,14 +787,82 @@ function renderSettingsServers() {
   });
 }
 
+/* ==================== ABGLEICH MIT DEM SERVER ====================
+   Zwei Knoepfe aus den Notizen. Der erste holt neue Inhalte, der
+   zweite uebernimmt den Aufbau, wie er im Jellyfin eingestellt ist.
+   ================================================================= */
+
+function setSyncStatus(id, message, kind = '') {
+  const node = $(id);
+  if (!node) return;
+  node.textContent = message || '';
+  node.className = `sync-status ${kind}`;
+}
+
+$('sync-library')?.addEventListener('click', async () => {
+  const button = $('sync-library');
+  button.disabled = true;
+  setSyncStatus('sync-status', t('sync.running'));
+
+  try {
+    /* Erst den Server suchen lassen, dann neu laden. Die Reihenfolge
+       ist wichtig: Umgekehrt zeigte das erneute Laden noch den alten
+       Stand, und die Suche liefe ins Leere. */
+    const result = await refreshServerLibrary();
+
+    await loadLibraries();
+    if (typeof state !== 'undefined' && state.view) navigate(state.view, { push: false });
+
+    /* Kein Adminkonto ist der Normalfall, kein Fehler. Der Satz sagt,
+       was passiert IST -- nicht, was nicht ging. */
+    if (result === 'forbidden') setSyncStatus('sync-status', t('sync.reloadedOnly'));
+    else if (result === 'failed') setSyncStatus('sync-status', t('sync.reloadedOnly'));
+    else setSyncStatus('sync-status', t('sync.started'), 'ok');
+  } catch (error) {
+    setSyncStatus('sync-status', t('sync.failed', { error: error.message }), 'bad');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('sync-structure')?.addEventListener('change', async (event) => {
+  prefs.structureFrom = event.target.value;
+  savePrefs();
+
+  setSyncStatus('structure-status', t('sync.running'));
+
+  try {
+    /* loadLibraries() liest den Aufbau gleich mit -- je nach
+       Einstellung vom Server oder gar nicht. */
+    await loadLibraries();
+    if (typeof state !== 'undefined' && state.view) navigate(state.view, { push: false });
+
+    if (prefs.structureFrom === 'jellyfin') {
+      const count = (state.homeSections || []).length;
+      setSyncStatus('structure-status',
+        count ? t('sync.structureFromServer') : t('sync.structureNothing'),
+        count ? 'ok' : '');
+    } else {
+      setSyncStatus('structure-status', t('sync.structureFromOwn'), 'ok');
+    }
+  } catch (error) {
+    setSyncStatus('structure-status', t('sync.failed', { error: error.message }), 'bad');
+  }
+});
+
 async function openSettings() {
   closeMenus();
   buildThemeGrid();
   buildAccentSwatches();
   renderSettingsServers();
   renderCardShapeLibraries();
+  renderPluginList();
   buildSeekStepOptions();
   renderLanguageList();
+
+  $('sync-structure').value = prefs.structureFrom || 'jellystream';
+  setSyncStatus('sync-status', '');
+  setSyncStatus('structure-status', '');
 
   $('accent-picker').value = prefs.accent;
   $('set-autoplay').checked = prefs.autoplayNext;
@@ -1819,6 +1892,78 @@ function selectControl({ options, value, onChange }) {
   select.value = value;
   select.addEventListener('change', (event) => onChange(event.target.value));
   return select;
+}
+
+/* ==================== PLUGINS ====================
+   Jellyfin-Plugins sind Server-Erweiterungen — ein fremder Client
+   kann sie nicht ausfuehren. Was er kann, ist ihre Daten nutzen, wo
+   sie ueber die Schnittstelle herauskommen. Diese Liste sagt, was
+   installiert ist und was davon hier ankommt.
+
+   /Plugins verlangt Administratorrechte. Fuer ein gewoehnliches Konto
+   erscheint deshalb ein Satz statt einer Fehlermeldung — die
+   Intro-Unterstuetzung laeuft davon unabhaengig fuer jeden, weil sie
+   an /MediaSegments haengt und nicht an dieser Liste.
+   ================================================= */
+
+/* Was Jellystream von einem Plugin tatsaechlich nutzt. Der
+   Schluessel ist der Name, wie Jellyfin ihn meldet, kleingeschrieben
+   und ohne Leerzeichen — Schreibweisen wechseln zwischen Fassungen. */
+const PLUGIN_SUPPORT = {
+  introskipper: 'plugins.usedIntro',
+  intros: 'plugins.usedIntro',
+  mediasegmentsapi: 'plugins.usedIntro'
+};
+
+function pluginSupportKey(name) {
+  const key = String(name || '').toLowerCase().replace(/[^a-z]/g, '');
+  return PLUGIN_SUPPORT[key] || null;
+}
+
+async function renderPluginList() {
+  const host = $('settings-plugins');
+  if (!host) return;
+
+  host.innerHTML = `<p class="settings-hint">${escapeHtml(t('common.loading'))}</p>`;
+
+  let plugins = null;
+  try {
+    plugins = await api('/Plugins');
+  } catch (error) {
+    const message = String(error?.message || '');
+    /* Kein Adminkonto: Das ist der Normalfall und keine Stoerung. */
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(
+      /\b401\b|\b403\b/.test(message) ? t('plugins.needsAdmin') : t('plugins.unavailable')
+    )}</p>`;
+    return;
+  }
+
+  const list = Array.isArray(plugins) ? plugins : [];
+  if (!list.length) {
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('plugins.none'))}</p>`;
+    return;
+  }
+
+  host.innerHTML = '';
+  list.forEach((plugin) => {
+    const supportKey = pluginSupportKey(plugin.Name);
+
+    const row = document.createElement('div');
+    row.className = 'plugin-row';
+    row.innerHTML = `
+      <span class="plugin-meta">
+        <strong>${escapeHtml(plugin.Name || '—')}</strong>
+        <small>${escapeHtml(plugin.Version || '')}${
+          plugin.Status && plugin.Status !== 'Active'
+            ? ` · ${escapeHtml(String(plugin.Status))}` : ''
+        }</small>
+      </span>
+      <span class="plugin-use ${supportKey ? 'used' : ''}">${escapeHtml(
+        supportKey ? t(supportKey) : t('plugins.notUsed')
+      )}</span>`;
+
+    host.appendChild(row);
+  });
 }
 
 /* ============ KACHELFORM JE BIBLIOTHEK ============

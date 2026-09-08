@@ -820,6 +820,40 @@
                 <h3 data-i18n="settings.servers">Server</h3>
                 <div id="settings-servers" class="settings-servers"></div>
               </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="sync.title">Bibliothek abgleichen</h3>
+                <p class="settings-hint" data-i18n="sync.hint">Jellystream zeigt immer den aktuellen Stand des Servers — ein Abgleich ist nur nötig, wenn der Server selbst noch nichts von neuen Dateien weiß.</p>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="sync.library">Bibliothek abgleichen</strong>
+                    <small data-i18n="sync.libraryHint">Lässt den Server nach neuen Dateien suchen und lädt danach neu</small>
+                  </span>
+                  <button class="outline-btn small" id="sync-library" type="button" data-i18n="sync.now">Jetzt abgleichen</button>
+                </div>
+
+                <div class="sync-status" id="sync-status" aria-live="polite"></div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="sync.structure">Aufbau abgleichen</strong>
+                    <small data-i18n="sync.structureHint">Reihenfolge der Bibliotheken und Abschnitte der Startseite</small>
+                  </span>
+                  <select id="sync-structure" class="select-input">
+                    <option value="jellystream" data-i18n="sync.structureOwn">Von Jellystream</option>
+                    <option value="jellyfin" data-i18n="sync.structureServer">Wie im Jellyfin eingestellt</option>
+                  </select>
+                </div>
+
+                <div class="sync-status" id="structure-status" aria-live="polite"></div>
+              </section>
+
+              <section class="settings-section">
+                <h3 data-i18n="plugins.title">Plugins</h3>
+                <p class="settings-hint" data-i18n="plugins.hint">Was Jellystream von den Erweiterungen des Servers nutzen kann, verwendet es automatisch.</p>
+                <div id="settings-plugins" class="settings-plugins"></div>
+              </section>
             </div>
 
             <!-- ============ ÜBER ============ -->
@@ -1001,6 +1035,7 @@
     <script src="core/i18n.js"></script>
     <script src="core/libraries.js"></script>
     <script src="core/livetv.js"></script>
+    <script src="core/libsync.js"></script>
     <script src="i18n-dom.js"></script>
     <script src="renderer.js"></script>
     <script src="core/playback.js"></script>
