@@ -17,7 +17,7 @@
 
   window.appInfo = {
     name: "Jellystream",
-    version: "2.13.1",
+    version: "2.14.0",
     platform: 'web'
   };
 
