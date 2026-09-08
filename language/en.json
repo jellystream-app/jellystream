@@ -181,6 +181,7 @@
     "player.fullscreen": "Fullscreen",
     "player.close": "Close",
     "player.nextUp": "Up next",
+    "player.skipIntro": "Skip intro",
     "player.playNow": "Play now",
     "player.cancel": "Cancel",
     "player.loading": "Loading…",

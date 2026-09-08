@@ -2528,6 +2528,38 @@ video::cue {
 .nextup-actions .play-btn { padding: 10px 18px; font-size: 0.88rem; }
 .nextup-actions .outline-btn { padding: 10px 16px; font-size: 0.88rem; }
 
+/* ============ INTRO ÜBERSPRINGEN ============
+   Gleiche Ecke wie „Als Nächstes", aber tiefer: Beide erscheinen nie
+   gleichzeitig — das eine gilt am Anfang, das andere am Ende. */
+.vp-skip {
+  position: absolute; right: 26px; bottom: 108px; z-index: 8;
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 0.9rem; font-weight: 600;
+  color: var(--text);
+  background: rgba(14,19,26,0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-lg);
+  animation: rise 0.28s var(--ease);
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+.vp-skip:hover {
+  background: rgba(20,28,38,0.97);
+  border-color: var(--accent);
+}
+.vp-skip svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* Im Vollbild auf dem Handy naeher an den Rand: dort liegt die
+   Bedienleiste hoeher, und der Daumen erreicht die Ecke schlechter. */
+@media (max-width: 700px) {
+  .vp-skip {
+    right: 14px; bottom: 92px;
+    padding: 11px 16px; font-size: 0.85rem;
+  }
+}
+
 /* ============ U7: TASTENKUERZEL ============ */
 .keys { display: grid; gap: 9px; margin: 0; }
 .keys > div {

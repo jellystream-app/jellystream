@@ -31,6 +31,7 @@ const vp = {
   chapters: $('vp-chapters'),
   chaptersMenu: $('vp-chapters-menu'),
   chapterMarks: $('vp-chapter-marks'),
+  skip: $('vp-skip'),
   nextup: $('vp-nextup'),
   nextupTitle: $('nextup-title'),
   nextupCount: $('nextup-count'),
@@ -62,6 +63,10 @@ const vpCurrent = {
   subtitleIndex: null,
   transcoding: false,
   chapters: [],
+
+  /* Intro- und Outro-Marken, falls der Server sie kennt. Je
+     { start, end } in Sekunden, sonst null. */
+  segments: { intro: null, outro: null },
   maxBitrate: 0, // 0 = Originalqualität
   local: false,  // true, wenn aus einer heruntergeladenen Datei gespielt wird
 
@@ -470,6 +475,28 @@ async function playVideo(item, siblings = [], options = {}) {
   buildQualityMenu();
   buildChapterUi();
 
+  /* Intro-Marken nachladen, ohne die Wiedergabe darauf warten zu
+     lassen: Der Film soll nicht spaeter anfangen, weil ein Plugin
+     befragt wird, das es vielleicht gar nicht gibt. Das Intro liegt
+     ohnehin nicht in der ersten Sekunde.
+
+     Geprueft wird gegen den Titel, nicht gegen vpLoadToken: Der Token
+     zaehlt bei jedem Qualitaets- und Spurwechsel hoch, die Marken
+     gelten aber weiter derselben Folge. Waehrend die Antwort laeuft,
+     kann dagegen die naechste Folge gestartet worden sein — dann
+     gehoeren die Marken nicht mehr hierher. */
+  vpCurrent.segments = { intro: null, outro: null };
+  resetSkip();
+
+  fetchMediaSegments(item.Id)
+    .then((segments) => {
+      if (vpCurrent.item?.Id !== item.Id) return;
+      vpCurrent.segments = segments;
+    })
+    .catch(() => {
+      /* fetchMediaSegments schluckt selbst; hier nur zur Sicherheit */
+    });
+
   const resumeAt = prefs.resumePlayback ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0) : 0;
   loadVideoSource(resumeAt);
 }
@@ -492,6 +519,11 @@ function playLocalFile(item, filePath) {
   vpCurrent.transcoding = false;
   vpCurrent.chapters = [];
   vpCurrent.local = true;
+
+  /* Aus der Datei gespielt heisst: kein Server, den man nach Marken
+     fragen koennte. Der Knopf bleibt aus. */
+  vpCurrent.segments = { intro: null, outro: null };
+  resetSkip();
 
   vp.title.textContent = item.Name || t('player.play');
   vp.subtitle.textContent =
@@ -920,6 +952,12 @@ function closeVideo() {
   vp.audioMenu.classList.add('hidden');
   vp.subsMenu.classList.add('hidden');
 
+  /* Marken und Knopf gehoeren zum geschlossenen Titel. Ohne das
+     Zuruecksetzen erschiene der Knopf beim naechsten Film im Intro
+     der vorigen Folge. */
+  vpCurrent.segments = { intro: null, outro: null };
+  resetSkip();
+
   // Nach einer Offline-Wiedergabe die ausgeblendeten Knoepfe zurueckholen
   if (vpCurrent.local) {
     [vp.audio, vp.subs, vp.quality].forEach((btn) => btn?.classList.remove('hidden'));
@@ -990,6 +1028,16 @@ vp.video.addEventListener('timeupdate', () => {
   const total = mediaDuration();
   vp.current.textContent = formatTime(position);
   if (total) vp.progress.style.width = `${(position / total) * 100}%`;
+  updateSkip(position);
+
+  /* Kennt der Server den Abspann, wird die naechste Folge schon dort
+     angeboten — ohne Zaehler, damit der Abspann laufen darf. */
+  if (!nextupShown && outroReached(position)) {
+    const nextItem = vpQueue[vpIndex + 1];
+    if (prefs.autoplayNext && prefs.showNextup !== false && vpIndex >= 0 && nextItem) {
+      offerNextUp(nextItem, { countdown: false });
+    }
+  }
 });
 
 vp.video.addEventListener('progress', () => {
@@ -1002,26 +1050,115 @@ vp.video.addEventListener('progress', () => {
   }
 });
 
+/* ==================== INTRO ÜBERSPRINGEN ====================
+   Der Knopf erscheint, solange die Wiedergabe im Intro steht, und
+   springt an dessen Ende.
+
+   Warum an das Ende und nicht eine feste Zahl Sekunden weiter: Die
+   Marke sagt genau, wo das Intro aufhoert. Ein pauschaler Sprung
+   landete mal davor, mal mitten in der ersten Szene.
+
+   Hat der Server keine Marken (Plugin fehlt, Jellyfin vor 10.10),
+   bleibt der Knopf aus — ohne Meldung. Ein Hinweis auf eine Funktion,
+   die der Server nicht anbietet, hilft niemandem.
+   ============================================================ */
+
+/* Wer den Knopf ignoriert, soll ihn nicht die ganze Zeit sehen; wer
+   ihn wegklickt, gar nicht mehr. */
+let skipDismissed = false;
+
+function hideSkip() {
+  vp.skip?.classList.add('hidden');
+}
+
+function resetSkip() {
+  skipDismissed = false;
+  hideSkip();
+}
+
+/** Prüft bei jedem Zeitfortschritt, ob der Knopf sichtbar sein soll. */
+function updateSkip(position) {
+  if (!vp.skip) return;
+
+  const intro = vpCurrent.segments?.intro;
+  if (!intro || skipDismissed) return hideSkip();
+
+  /* Etwas Vorlauf: Steht die Wiedergabe eine Sekunde vor dem Intro,
+     ist der Knopf schon da — sonst erscheint er im Moment, in dem man
+     ihn braucht, und wird uebersehen. */
+  const visible = position >= Math.max(0, intro.start - 1) && position < intro.end;
+  vp.skip.classList.toggle('hidden', !visible);
+}
+
+/** Beginnt hier der Abspann?
+ *
+ *  Kennt der Server ein Outro, soll die naechste Folge schon dort
+ *  angeboten werden statt erst nach dem letzten Bild — das ist der
+ *  Moment, in dem man ohnehin weiterklicken wuerde. Ohne Marke bleibt
+ *  es beim bisherigen Verhalten am Ende des Titels. */
+function outroReached(position) {
+  const outro = vpCurrent.segments?.outro;
+  if (!outro) return false;
+
+  /* Nicht auf den letzten Sekundenbruchteil warten: Der Abspann darf
+     ruhig noch laufen, waehrend die Einblendung steht. */
+  return position >= outro.start;
+}
+
+vp.skip?.addEventListener('click', () => {
+  const intro = vpCurrent.segments?.intro;
+  if (!intro) return hideSkip();
+
+  /* Ein Sprung an das genaue Ende landet gelegentlich noch im letzten
+     Bild des Intros — der Knopf blitzte dann erneut auf. Ein Viertel
+     Sekunde darueber ist unsichtbar und verhindert das. */
+  seekTo(intro.end + 0.25);
+
+  skipDismissed = true;
+  hideSkip();
+});
+
 /* U8: Nächste Folge mit Countdown statt hartem Sprung */
 let nextupTimer = null;
 
 function cancelNextUp() {
   clearInterval(nextupTimer);
   nextupTimer = null;
+  nextupShown = false;
   vp.nextup.classList.add('hidden');
 }
 
-function offerNextUp(nextItem) {
+/* Steht die Einblendung schon, weil der Abspann begonnen hat? Dann
+   darf sie nicht bei jedem Zeitfortschritt neu aufgebaut werden. */
+let nextupShown = false;
+
+/** Bietet die naechste Folge an.
+ *
+ *  `countdown` entscheidet, ob von selbst weitergeschaltet wird. Beim
+ *  Abspann ausdruecklich NICHT: Wer den Abspann sehen will, soll ihn
+ *  sehen. Die Einblendung steht dann nur bereit, und der Zaehler
+ *  beginnt erst, wenn der Titel wirklich zu Ende ist. */
+function offerNextUp(nextItem, { countdown = true } = {}) {
   vp.nextupTitle.textContent =
     nextItem.IndexNumber != null
       ? `F${nextItem.IndexNumber} · ${nextItem.Name || ''}`
       : nextItem.Name || '';
 
-  let remaining = prefs.nextupSeconds || 10;
-  vp.nextupCount.textContent = remaining;
   vp.nextup.classList.remove('hidden');
+  nextupShown = true;
 
   clearInterval(nextupTimer);
+
+  if (!countdown) {
+    /* Ohne Zaehler bleibt der Knopf ein Angebot. Die Zahl daneben
+       waere eine Drohung, die nicht eintritt. */
+    vp.nextupCount.textContent = '';
+    return;
+  }
+
+  let remaining = prefs.nextupSeconds || 10;
+  vp.nextupCount.textContent = remaining;
+
   nextupTimer = setInterval(() => {
     remaining -= 1;
     vp.nextupCount.textContent = Math.max(remaining, 0);

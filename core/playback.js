@@ -311,6 +311,59 @@ function resolveStream(playbackInfo, item, options = {}) {
   };
 }
 
+/* ==================== MEDIENABSCHNITTE ====================
+   Intro, Outro, Vorschau — was uebersprungen werden darf.
+
+   Diese Marken liefert das Plugin "Intro Skipper"; seit Jellyfin 10.10
+   nimmt der Server sie ueber eine eigene Schnittstelle heraus, statt
+   sie im Plugin zu verstecken. Damit funktioniert das Ueberspringen in
+   jedem Client, der danach fragt — auch in diesem.
+
+   Bewusst ohne Fehlerbehandlung nach draussen: Ist das Plugin nicht
+   installiert oder ist der Server aelter als 10.10, antwortet er 404.
+   Das ist kein Fehlerfall, sondern die Antwort "es gibt hier nichts zu
+   ueberspringen". Genau deshalb ist der Aufruf gleichzeitig die
+   Erkennung, ob es die Funktion gibt — und die braucht keine
+   Administratorrechte, anders als die Plugin-Liste.
+   ============================================================ */
+
+/** Holt Intro- und Outro-Marken zu einem Titel.
+ *
+ *  Rueckgabe: { intro, outro } jeweils als { start, end } in SEKUNDEN
+ *  oder null. Sekunden, weil der Player in Sekunden rechnet — Ticks
+ *  waeren hier nur eine Einheit, die der Aufrufer wieder umrechnen
+ *  muesste. */
+async function fetchMediaSegments(itemId) {
+  const empty = { intro: null, outro: null };
+  if (!itemId) return empty;
+
+  let data = null;
+  try {
+    data = await api(
+      `/MediaSegments/${itemId}?includeSegmentTypes=Intro,Outro`
+    );
+  } catch (error) {
+    /* 404 = kein Plugin oder Server vor 10.10. Beides heisst: nichts
+       zu ueberspringen. */
+    return empty;
+  }
+
+  const pick = (type) => {
+    const hit = (data?.Items || []).find((s) => s.Type === type);
+    if (!hit) return null;
+
+    const start = ticksToSeconds(hit.StartTicks);
+    const end = ticksToSeconds(hit.EndTicks);
+
+    /* Ein Abschnitt ohne Laenge waere ein Knopf, der nichts tut.
+       Ebenso einer, der rueckwaerts laeuft. */
+    if (!(end > start)) return null;
+    return { start, end };
+  };
+
+  return { intro: pick('Intro'), outro: pick('Outro') };
+}
+
 /** Meldet dem Server, dass ein Transcode nicht mehr gebraucht wird. */
 async function stopTranscoding(playSessionId) {
   if (!playSessionId) return;

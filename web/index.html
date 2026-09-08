@@ -226,6 +226,13 @@
         </button>
 
         <!-- U8: Countdown zur nächsten Folge, abbrechbar -->
+        <!-- Intro überspringen. Erscheint nur, wenn der Server Marken
+             dafür liefert (Plugin "Intro Skipper", Jellyfin ab 10.10). -->
+        <button id="vp-skip" class="vp-skip hidden" type="button">
+          <span data-i18n="player.skipIntro">Intro überspringen</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/></svg>
+        </button>
+
         <div id="vp-nextup" class="vp-nextup hidden">
           <div class="nextup-body">
             <span class="nextup-label" data-i18n="player.nextUp">Als Nächstes</span>
