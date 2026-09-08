@@ -31,6 +31,7 @@
     "test:www": "electron tools/test-www.js",
     "test:web": "electron tools/test-web.js",
     "web:build": "node tools/build-web.js",
+    "version": "npm run web:build && git add web",
     "test:music": "electron tools/test-music.js"
   },
   "homepage": "https://github.com/jellystream-app/jellystream",
