@@ -7,6 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/jellystream-app/jellystream?color=00a4dc&style=flat-square)](https://github.com/jellystream-app/jellystream/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-141519?style=flat-square)](https://github.com/jellystream-app/jellystream/releases)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/jellystream)
+[![Avantahost](https://img.shields.io/badge/Hosted_by-Avantahost-0084ff?style=flat-square)](https://avantahost.de?ref=UKY)
 
 [English](#english) • [Deutsch](#deutsch)
 
