@@ -64,7 +64,15 @@ Wir sammeln aktuell Spenden über Ko-fi, um die offizielle Domain **`jellystream
 [![Auf Ko-fi unterstützen](https://img.shields.io/badge/Spenden-Ko--fi-00a4dc?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/jellystream)
 
 ---
+## Star History
 
+<a href="https://www.star-history.com/?repos=jellystream-app%2Fjellystream&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jellystream-app/jellystream&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jellystream-app/jellystream&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jellystream-app/jellystream&type=date&legend=top-left" />
+ </picture>
+</a>
 <div align="center">
 
 [![Developed by UkY](https://img.shields.io/badge/Developer-UkY-00a4dc?style=flat-square)](https://github.com/ukyyyy)
