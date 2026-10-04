@@ -1762,7 +1762,7 @@ async function showDetail(base) {
   const isEpisode = base.Type === 'Episode';
 
   try {
-    const [detail, seasonsData, similarData] = await Promise.all([
+    const [detail, seasonsData, similarData, localTrailersData] = await Promise.all([
       api(`/Users/${state.userId}/Items/${base.Id}?Fields=${DETAIL_FIELDS}`).catch(() => base),
       isSeries
         ? api(`/Shows/${base.Id}/Seasons?userId=${state.userId}&Fields=ProductionYear,ChildCount`).catch(() => null)
@@ -1771,12 +1771,17 @@ async function showDetail(base) {
          wenig hilfreich. Stattdessen unten die Folgen derselben Staffel. */
       isEpisode
         ? Promise.resolve(null)
-        : api(`/Items/${base.Id}/Similar?userId=${state.userId}&Limit=14&Fields=ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated`).catch(() => null)
+        : api(`/Items/${base.Id}/Similar?userId=${state.userId}&Limit=14&Fields=ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated`).catch(() => null),
+      /* Trailer: zuerst auf dem Server gespeicherte, dann Remote-Links aus den item-Metadaten */
+      api(`/Users/${state.userId}/Items/${base.Id}/LocalTrailers`).catch(() => null)
     ]);
 
     const item = detail || base;
     const seasons = seasonsData?.Items || [];
     const similar = similarData?.Items || [];
+    /* Trailer: lokale bevorzugt, Remote als Fallback */
+    const localTrailers = localTrailersData || [];
+    const remoteTrailers = (item.RemoteTrailers || []).filter((t) => t.Url);
 
     const backdrop = imageUrl(item, 'Backdrop', 1440) || imageUrl(item, 'Primary', 1440);
     /* Eine Folge hat ein Querformat-Standbild, kein Hochkant-Poster.
@@ -1841,6 +1846,9 @@ async function showDetail(base) {
               </button>
               ${isDownloadable(item) ? `<button class="outline-btn" id="detail-download" type="button"
                   data-dl-item="${escapeHtml(item.Id)}">${ICON_DOWNLOAD} ${escapeHtml(t('detail.download'))}</button>` : ''}
+              ${(localTrailers.length || remoteTrailers.length) ? `<button class="outline-btn" id="detail-trailer" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="8,5 19,12 8,19"/><rect x="3" y="5" width="3" height="14" rx="1"/></svg>
+                Trailer</button>` : ''}
             </div>
 
             ${item.Genres?.length ? `<div class="detail-tags">${item.Genres.map((g) =>
@@ -1929,6 +1937,23 @@ async function showDetail(base) {
 
     $('detail-download')?.addEventListener('click', () => openDownloadModal(item));
     if (typeof updateDownloadButtons === 'function') updateDownloadButtons();
+
+    /* Trailer-Button — lokaler Trailer hat Vorrang, sonst erster Remote-Link */
+    $('detail-trailer')?.addEventListener('click', () => {
+      if (localTrailers.length) {
+        /* Lokaler Trailer: läuft direkt im Video-Player */
+        playVideo(localTrailers[0], localTrailers);
+      } else if (remoteTrailers.length) {
+        /* Remote (meist YouTube): im externen Browser öffnen */
+        const url = remoteTrailers[0].Url;
+        if (window.windowControls) {
+          /* Intern navigieren lassen — main.js leitet http/https weiter */
+          window.location.href = url;
+        } else {
+          window.open(url, '_blank');
+        }
+      }
+    });
 
     // Genre-Chips führen in den gefilterten Katalog
     el.viewRoot.querySelectorAll('.genre-chip[data-genre]').forEach((chip) => {
