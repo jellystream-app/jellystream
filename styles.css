@@ -1700,16 +1700,37 @@ body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 .vp-hover-time {
   position: absolute; bottom: 26px;
   transform: translateX(-50%);
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 0;
+  border-radius: 8px;
   background: rgba(0,0,0,0.88);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.14s var(--ease);
+  overflow: hidden;
+  display: flex; flex-direction: column; align-items: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  min-width: 60px;
 }
 .vp-scrub:hover .vp-hover-time { opacity: 1; }
+
+/* Trickplay-Thumbnail im Scrubber-Tooltip */
+.vp-tp-img {
+  display: block;
+  border-radius: 6px 6px 0 0;
+  object-fit: cover;
+}
+.vp-tp-img.hidden { display: none; }
+.vp-tp-time {
+  display: block;
+  padding: 4px 8px 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  white-space: nowrap;
+}
 
 .vp-controls {
   display: flex; align-items: center; gap: 5px;

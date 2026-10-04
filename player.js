@@ -501,6 +501,9 @@ async function playVideo(item, siblings = [], options = {}) {
   buildQualityMenu();
   buildChapterUi();
 
+  // Trickplay-Thumbnails für den Scrubber vorladen
+  loadTrickplayInfo(item.Id);
+
   /* Intro-Marken nachladen, ohne die Wiedergabe darauf warten zu
      lassen: Der Film soll nicht spaeter anfangen, weil ein Plugin
      befragt wird, das es vielleicht gar nicht gibt. Das Intro liegt
@@ -1308,6 +1311,78 @@ function seekFromEvent(event) {
   }
 }
 
+/* Trickplay-Thumbnails im Scrubber
+   Jellyfin liefert Thumbnails als JPEG-Kacheln unter
+   /Videos/{id}/Trickplay/{width}/{index}.jpg
+   Die Metadaten (wie viele Kacheln, welche Breite) kommen aus dem
+   MediaSource-Info-Aufruf – wir fragen sie einmal ab und cachen sie. */
+
+let trickplay = null; // { interval, width, tileWidth, tileHeight, available }
+
+async function loadTrickplayInfo(itemId) {
+  trickplay = null;
+  if (!itemId || !state.serverUrl) return;
+  try {
+    const data = await api(`/Videos/${itemId}/Trickplay?enableImages=true`);
+    // Antwortformat: { [width]: { Interval, TileWidth, TileHeight, ThumbnailCount, ... } }
+    if (!data || typeof data !== 'object') return;
+    const widths = Object.keys(data).map(Number).sort((a, b) => b - a);
+    if (!widths.length) return;
+    // Bevorzuge 320 px, sonst die nächstgrößere verfügbare Breite
+    const preferred = widths.find((w) => w <= 320) || widths[widths.length - 1];
+    const info = data[preferred];
+    if (!info) return;
+    trickplay = {
+      interval:   (info.Interval   || 10000) / 10000000, // Ticks → Sekunden
+      width:      preferred,
+      tileWidth:  info.TileWidth  || preferred,
+      tileHeight: info.TileHeight || Math.round(preferred * 9 / 16),
+      count:      info.ThumbnailCount || 0
+    };
+  } catch {
+    /* nicht verfügbar – kein Fehler anzeigen */
+  }
+}
+
+/* Thumbnail-Element im hoverTime-Container erzeugen */
+const trickplayImg = document.createElement('img');
+trickplayImg.className = 'vp-tp-img';
+trickplayImg.alt = '';
+vp.hoverTime.insertAdjacentElement('afterbegin', trickplayImg);
+const trickplayTime = document.createElement('span');
+trickplayTime.className = 'vp-tp-time';
+vp.hoverTime.appendChild(trickplayTime);
+/* Den originalen Textinhalt (der für alte Browser): leeren */
+vp.hoverTime.childNodes.forEach((n) => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+
+function updateTrickplayThumb(ratio) {
+  const total = mediaDuration() || 0;
+  const seconds = ratio * total;
+  trickplayTime.textContent = formatTime(seconds);
+
+  if (!trickplay || !total) {
+    trickplayImg.classList.add('hidden');
+    return;
+  }
+
+  const frameIndex = Math.floor(seconds / trickplay.interval);
+  if (frameIndex >= trickplay.count) {
+    trickplayImg.classList.add('hidden');
+    return;
+  }
+
+  const url = `${state.serverUrl}/Videos/${vpCurrent.item?.Id}/Trickplay/${trickplay.width}/${frameIndex}.jpg`
+    + `?MediaSourceId=${vpCurrent.mediaSourceId || ''}&api_key=${state.token || ''}`;
+
+  if (trickplayImg.dataset.src !== url) {
+    trickplayImg.dataset.src = url;
+    trickplayImg.src = url;
+    trickplayImg.style.width  = `${trickplay.tileWidth}px`;
+    trickplayImg.style.height = `${trickplay.tileHeight}px`;
+  }
+  trickplayImg.classList.remove('hidden');
+}
+
 vp.scrub.addEventListener('mousedown', (event) => {
   vpScrubbing = true;
   seekFromEvent(event);
@@ -1316,8 +1391,8 @@ vp.scrub.addEventListener('mousedown', (event) => {
 vp.scrub.addEventListener('mousemove', (event) => {
   const rect = vp.scrub.getBoundingClientRect();
   const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-  vp.hoverTime.textContent = formatTime(ratio * (mediaDuration() || 0));
   vp.hoverTime.style.left = `${ratio * 100}%`;
+  updateTrickplayThumb(ratio);
   if (vpScrubbing) seekFromEvent(event);
 });
 
