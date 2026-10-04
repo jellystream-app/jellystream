@@ -246,6 +246,24 @@ check('Nutzt den richtigen Tag',
   /github.event.release.tag_name/.test(String(publish?.with?.tag_name || '')),
   String(publish?.with?.tag_name || ''));
 
+/* Release-Text aus docs/releases/<tag>.md — sonst stuende im Release
+   nur die Commit-Liste. */
+const notesStep = relSteps.find((s) => /docs\/releases/.test(String(s.run || '')));
+check('Release-Text wird gesucht', Boolean(notesStep?.id));
+check('Release-Text landet im Release',
+  String(publish?.with?.body_path || '').includes(`steps.${notesStep?.id}.outputs`),
+  String(publish?.with?.body_path || ''));
+const tagNow = `v${JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version}`;
+check('Release-Text fuer die aktuelle Fassung vorhanden',
+  fs.existsSync(path.join(ROOT, 'docs', 'releases', `${tagNow}.md`)),
+  `docs/releases/${tagNow}.md`);
+
+/* Abgeloeste Android-Einrichtung: v3 scheitert, seit Google das alte
+   tools-Paket entfernt hat (Release 2.15.0 ohne APK). */
+const sdkStep = aSteps.find((s) => (s.uses || '').includes('setup-android'));
+const sdkMajor = Number((String(sdkStep?.uses || '').match(/@v(\d+)/) || [])[1]);
+check('setup-android ab v4', sdkMajor >= 4, String(sdkStep?.uses || ''));
+
 /* ---------- Node-Fassung gegen die Forderungen der Pakete ----------
 
    @capacitor/cli fordert engines.node >=22 und bricht hart ab, wenn

@@ -181,13 +181,15 @@ jobs:
       # app/build.gradle griffe nur für :app und würde von der
       # erzeugten Datei ohnehin überschrieben.
       - name: JDK einrichten
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
+      # v4: Google hat das alte tools-Paket entfernt, v3 bricht seitdem
+      # schon beim Einrichten ab (v2.15.0, setup-android#538).
       - name: Android-SDK einrichten
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Abhängigkeiten installieren
         run: npm ci
@@ -387,6 +389,20 @@ jobs:
             echo "::warning::Keine APK im Release — der Android-Job ist wohl fehlgeschlagen."
           fi
 
+      # Release-Text: docs/releases/<tag>.md, falls es ihn gibt. Sonst
+      # nur die automatisch erzeugte Commit-Liste wie bisher.
+      - name: Release-Text suchen
+        id: notes
+        env:
+          TAG: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://raw.githubusercontent.com/$REPO/$TAG/docs/releases/$TAG.md" \
+            -o release-notes.md && echo "datei=release-notes.md" >> "$GITHUB_OUTPUT" \
+            || echo "Kein Release-Text unter docs/releases/$TAG.md"
+
       - name: An das Release hängen
         uses: softprops/action-gh-release@v2
         with:
@@ -396,4 +412,5 @@ jobs:
           # Bereits vorhandene gleichnamige Dateien werden ersetzt,
           # damit ein erneuter Lauf nicht scheitert.
           fail_on_unmatched_files: true
+          body_path: ${{ steps.notes.outputs.datei }}
           generate_release_notes: ${{ github.event_name != 'release' }}
