@@ -520,6 +520,8 @@ async function switchToServer(entry) {
 
   music.stop();
   closeVideo();
+  // Die Gruppe gehoert zum alten Server
+  if (typeof syncplay !== 'undefined') syncplay.reset();
 
   try {
     vault.setJSON('jf-session', {

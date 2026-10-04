@@ -641,6 +641,23 @@
     "menu.goToSeries": "Zur Serie",
     "menu.goToAlbum": "Zum Album",
     "profiles.title": "Wer schaut?",
-    "profiles.signInAs": "Als {name} anmelden"
+    "profiles.signInAs": "Als {name} anmelden",
+    "syncplay.title": "Gemeinsam schauen",
+    "syncplay.create": "Neue Gruppe starten",
+    "syncplay.leave": "Gruppe verlassen",
+    "syncplay.group": "Gruppe",
+    "syncplay.defaultName": "Gruppe von {name}",
+    "syncplay.members": "Dabei: {names}",
+    "syncplay.noGroups": "Gerade schaut niemand gemeinsam. Starte eine Gruppe, andere können dann beitreten.",
+    "syncplay.howTo": "Was du jetzt startest, läuft bei allen in der Gruppe. Pause und Spulen gelten für alle.",
+    "syncplay.joined": "Gruppe „{name}“ beigetreten",
+    "syncplay.left": "Gruppe verlassen",
+    "syncplay.userJoined": "{name} ist dazugekommen",
+    "syncplay.userLeft": "{name} ist gegangen",
+    "syncplay.badge": "Gemeinsam · {count}",
+    "syncplay.forbidden": "Dein Konto darf auf diesem Server nicht gemeinsam schauen.",
+    "syncplay.unavailable": "Gemeinsam schauen ist gerade nicht erreichbar.",
+    "syncplay.accessDenied": "Jemand in der Gruppe hat keinen Zugriff auf diesen Titel.",
+    "syncplay.gone": "Die Gruppe gibt es nicht mehr."
   }
 }

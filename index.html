@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' http: https: data: blob:; media-src 'self' http: https: blob:; connect-src 'self' http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      content="default-src 'self'; img-src 'self' http: https: data: blob:; media-src 'self' http: https: blob:; connect-src 'self' http: https: ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     />
     <title>Jellystream</title>
     <link rel="stylesheet" href="styles.css" />
@@ -158,6 +158,19 @@
             <div id="recent-searches-dropdown" class="recent-searches-dropdown hidden"></div>
           </div>
 
+          <!-- SyncPlay: gemeinsam schauen -->
+          <div class="nav-dropdown">
+            <button id="syncplay-btn" class="icon-btn syncplay-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                    data-i18n-title="syncplay.title" data-i18n-aria="syncplay.title" title="Gemeinsam schauen" aria-label="Gemeinsam schauen">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="9" r="3"/><path d="M2.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6M13.6 15c.9-.4 1.9-.6 2.9-.6 2.7 0 4.9 1.6 5.5 4.6"/></svg>
+              <span class="syncplay-dot" aria-hidden="true"></span>
+            </button>
+            <div id="syncplay-menu" class="dropdown-menu syncplay-menu hidden" role="dialog" aria-labelledby="syncplay-heading">
+              <h4 id="syncplay-heading" data-i18n="syncplay.title">Gemeinsam schauen</h4>
+              <div id="syncplay-body"></div>
+            </div>
+          </div>
+
           <div class="nav-dropdown">
             <button id="profile-btn" class="profile-btn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n-aria="profile.user" aria-label="Profil">
               <span class="user-avatar" id="user-avatar">?</span>
@@ -219,6 +232,7 @@
             <strong id="vp-title" data-i18n="player.play">Wiedergabe</strong>
             <span id="vp-subtitle"></span>
           </div>
+          <span id="vp-syncplay" class="vp-syncplay hidden" aria-live="polite"></span>
           <span id="vp-method" class="vp-method"></span>
         </div>
 
@@ -1109,11 +1123,13 @@
     <script src="core/livetv.js"></script>
     <script src="core/libsync.js"></script>
     <script src="core/trakt.js"></script>
+    <script src="core/syncplay.js"></script>
     <script src="i18n-dom.js"></script>
     <script src="renderer.js"></script>
     <script src="core/playback.js"></script>
     <script src="offline.js"></script>
     <script src="player.js"></script>
+    <script src="syncplay-ui.js"></script>
     <script src="settings.js"></script>
     <script src="profiles.js"></script>
   </body>

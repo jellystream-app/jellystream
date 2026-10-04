@@ -8,8 +8,8 @@
     "dev": "electron .",
     "icon": "electron tools/make-icon.js",
     "dist": "electron-builder --win --publish never",
-    "test": "npm run test:syntax && npm run test:core && npm run test:workflow && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:hero && npm run test:cards && npm run test:ux && npm run test:shapes && npm run test:libraries && npm run test:libsync && npm run test:servers && npm run test:vault && npm run test:login && npm run test:profiles && npm run test:playback && npm run test:segments && npm run test:livetv && npm run test:music && npm run test:i18n && npm run test:i18n:keys && npm run test:sync && npm run test:updater && npm run test:fixes && npm run test:mobile && npm run test:www && npm run test:web && npm run test:smoke",
-    "test:syntax": "node --check main.js && node --check updater.js && node --check discord.js && node --check downloads.js && node --check languages.js && node --check core/i18n.js && node --check core/libraries.js && node --check core/livetv.js && node --check core/libsync.js && node --check core/vault.js && node --check core/trakt.js && node --check i18n-dom.js && node --check core/playback.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check settings.js && node --check profiles.js && node --check preload.js && node tools/scan-renderer-helpers.js",
+    "test": "npm run test:syntax && npm run test:core && npm run test:workflow && npm run test:downloads && npm run test:ui && npm run test:rows && npm run test:hero && npm run test:cards && npm run test:ux && npm run test:shapes && npm run test:libraries && npm run test:libsync && npm run test:servers && npm run test:vault && npm run test:login && npm run test:profiles && npm run test:playback && npm run test:syncplay && npm run test:segments && npm run test:livetv && npm run test:music && npm run test:i18n && npm run test:i18n:keys && npm run test:sync && npm run test:updater && npm run test:fixes && npm run test:mobile && npm run test:www && npm run test:web && npm run test:smoke",
+    "test:syntax": "node --check main.js && node --check updater.js && node --check discord.js && node --check downloads.js && node --check languages.js && node --check core/i18n.js && node --check core/libraries.js && node --check core/livetv.js && node --check core/libsync.js && node --check core/vault.js && node --check core/trakt.js && node --check core/syncplay.js && node --check i18n-dom.js && node --check core/playback.js && node --check renderer.js && node --check offline.js && node --check player.js && node --check syncplay-ui.js && node --check settings.js && node --check profiles.js && node --check preload.js && node tools/scan-renderer-helpers.js",
     "test:downloads": "electron tools/test-downloads.js",
     "test:ui": "electron tools/test-ui.js",
     "test:rows": "electron tools/test-rows.js",
@@ -43,7 +43,8 @@
     "test:vault": "electron tools/test-vault.js",
     "test:i18n:keys": "node tools/missing-keys.js",
     "test:ux": "electron tools/test-ux.js",
-    "test:profiles": "electron tools/test-profiles.js"
+    "test:profiles": "electron tools/test-profiles.js",
+    "test:syncplay": "electron tools/test-syncplay.js"
   },
   "homepage": "https://github.com/jellystream-app/jellystream",
   "repository": {
@@ -89,6 +90,7 @@
       "renderer.js",
       "offline.js",
       "player.js",
+      "syncplay-ui.js",
       "settings.js",
       "profiles.js",
       "index.html",

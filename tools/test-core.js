@@ -64,7 +64,7 @@ files.forEach((name) => {
 });
 
 /* Die Oberflächen dürfen den Kern nutzen — aber der Kern nicht sie. */
-const uiFiles = ['renderer.js', 'player.js', 'settings.js', 'offline.js', 'i18n-dom.js', 'profiles.js'];
+const uiFiles = ['renderer.js', 'player.js', 'settings.js', 'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js'];
 const coreNames = files.map((f) => f.replace('.js', ''));
 
 files.forEach((name) => {

@@ -641,6 +641,23 @@
     "menu.goToSeries": "Go to series",
     "menu.goToAlbum": "Go to album",
     "profiles.title": "Who's watching?",
-    "profiles.signInAs": "Sign in as {name}"
+    "profiles.signInAs": "Sign in as {name}",
+    "syncplay.title": "Watch together",
+    "syncplay.create": "Start a new group",
+    "syncplay.leave": "Leave group",
+    "syncplay.group": "Group",
+    "syncplay.defaultName": "{name}'s group",
+    "syncplay.members": "With: {names}",
+    "syncplay.noGroups": "Nobody is watching together right now. Start a group and others can join.",
+    "syncplay.howTo": "Whatever you start now plays for everyone in the group. Pausing and seeking apply to all.",
+    "syncplay.joined": "Joined “{name}”",
+    "syncplay.left": "Left the group",
+    "syncplay.userJoined": "{name} joined",
+    "syncplay.userLeft": "{name} left",
+    "syncplay.badge": "Together · {count}",
+    "syncplay.forbidden": "Your account isn't allowed to watch together on this server.",
+    "syncplay.unavailable": "Watch together is unavailable right now.",
+    "syncplay.accessDenied": "Someone in the group can't access this title.",
+    "syncplay.gone": "That group no longer exists."
   }
 }

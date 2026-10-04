@@ -325,6 +325,7 @@ let sessionExpiredHandled = false;
 function handleSessionExpired() {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
+  if (typeof syncplay !== 'undefined') syncplay.reset();
 
   try {
     localStorage.removeItem('jf-session');
@@ -3614,6 +3615,9 @@ document.querySelectorAll('.nav-btn[data-view]').forEach((btn) => {
 function closeMenus() {
   el.libraryMenu.classList.add('hidden');
   el.profileMenu.classList.add('hidden');
+  $('syncplay-menu')?.classList.add('hidden');
+  $('syncplay-btn')?.classList.remove('open');
+  $('syncplay-btn')?.setAttribute('aria-expanded', 'false');
   el.libraryToggle.classList.remove('open');
   el.libraryToggle.setAttribute('aria-expanded', 'false');
   el.profileBtn.classList.remove('open');
@@ -3653,6 +3657,8 @@ el.mainPanel.addEventListener('scroll', () => {
 });
 
 el.disconnectBtn.addEventListener('click', () => {
+  // Eine laufende Gruppe verlassen, sonst bleibt man beim Server darin
+  if (typeof syncplay !== 'undefined' && syncplay.active) syncplay.leave().catch(() => {});
   try {
     localStorage.removeItem('jf-session');
   } catch (error) {

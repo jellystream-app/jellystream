@@ -107,8 +107,16 @@ function mediaDuration() {
   return Number.isFinite(own) && own > 0 ? own : full;
 }
 
-/** Springt an eine Stelle im Film — auch ueber die Grenze des Streams. */
+/** Springt an eine Stelle im Film — so, wie der Nutzer es will.
+ *  In einer SyncPlay-Gruppe wird nur gefragt: Der Server laesst dann
+ *  alle gleichzeitig springen (syncplay-ui.js ruft seekToDirect). */
 function seekTo(seconds) {
+  if (typeof syncPlayIntercept === 'function' && syncPlayIntercept('seek', Math.max(0, seconds))) return;
+  seekToDirect(seconds);
+}
+
+/** Springt wirklich — auch ueber die Grenze des Streams. */
+function seekToDirect(seconds) {
   /* Im laufenden Fernsehen gibt es keine Stelle, an die man springen
      koennte. Ohne diese Sperre wuerde jeder Pfeiltastendruck den
      Stream neu anfordern — und der Kanal faengt einfach wieder jetzt
@@ -417,6 +425,14 @@ function toggleIcons(button, playing) {
 }
 
 async function playVideo(item, siblings = [], options = {}) {
+  /* In einer SyncPlay-Gruppe startet ein Titel fuer alle: Er geht als
+     Warteschlange an den Server, der ihn dann bei jedem laden laesst
+     (mit options.syncStart). Live und Downloads gehen nicht gemeinsam. */
+  if (options.syncStart == null && !options.localFile && item?.Type !== 'TvChannel'
+      && typeof syncPlayStart === 'function' && syncPlayStart(item, siblings)) {
+    return;
+  }
+
   vpQueue = siblings.length ? siblings : [item];
   vpIndex = vpQueue.findIndex((entry) => entry.Id === item.Id);
   if (vpIndex < 0) vpIndex = 0;
@@ -551,10 +567,12 @@ async function playVideo(item, siblings = [], options = {}) {
 
   /* Live faengt immer jetzt an: eine gemerkte Position gehoerte zu
      einer Sendung, die laengst vorbei ist. */
-  const resumeAt = !isLive && prefs.resumePlayback
-    ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0)
-    : 0;
-  loadVideoSource(resumeAt);
+  const resumeAt = options.syncStart != null
+    ? options.syncStart // die Gruppe bestimmt die Stelle
+    : !isLive && prefs.resumePlayback
+      ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0)
+      : 0;
+  await loadVideoSource(resumeAt);
 }
 
 /* ---------------------- Offline-Wiedergabe ----------------------
@@ -705,6 +723,8 @@ async function loadVideoSource(startAt = 0) {
   if (plan.seekHandledByServer) vpCurrent.serverSeekOffset = startAt;
   else vpCurrent.serverSeekOffset = 0;
 
+  // In einer Gruppe startet erst der Befehl des Servers — fuer alle zugleich
+  if (typeof syncplay !== 'undefined' && syncplay.active) return;
   vp.video.play().catch((error) => console.warn('Autoplay blockiert:', error));
 }
 
@@ -1056,6 +1076,9 @@ vp.play.addEventListener('click', togglePlayVideo);
 vp.centerPlay.addEventListener('click', togglePlayVideo);
 
 function togglePlayVideo() {
+  // In einer SyncPlay-Gruppe entscheidet der Server, wann alle starten
+  if (typeof syncPlayIntercept === 'function'
+      && syncPlayIntercept(vp.video.paused ? 'play' : 'pause')) return;
   if (vp.video.paused) vp.video.play();
   else vp.video.pause();
 }
