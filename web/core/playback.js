@@ -334,13 +334,13 @@ function resolveStream(playbackInfo, item, options = {}) {
  *  waeren hier nur eine Einheit, die der Aufrufer wieder umrechnen
  *  muesste. */
 async function fetchMediaSegments(itemId) {
-  const empty = { intro: null, outro: null };
+  const empty = { intro: null, outro: null, skippable: [] };
   if (!itemId) return empty;
 
   let data = null;
   try {
     data = await api(
-      `/MediaSegments/${itemId}?includeSegmentTypes=Intro,Outro`
+      `/MediaSegments/${itemId}?includeSegmentTypes=Intro,Outro,Recap,Preview,Commercial`
     );
   } catch (error) {
     /* 404 = kein Plugin oder Server vor 10.10. Beides heisst: nichts
@@ -348,21 +348,37 @@ async function fetchMediaSegments(itemId) {
     return empty;
   }
 
-  const pick = (type) => {
-    const hit = (data?.Items || []).find((s) => s.Type === type);
-    if (!hit) return null;
-
+  const toRange = (hit) => {
     const start = ticksToSeconds(hit.StartTicks);
     const end = ticksToSeconds(hit.EndTicks);
 
     /* Ein Abschnitt ohne Laenge waere ein Knopf, der nichts tut.
        Ebenso einer, der rueckwaerts laeuft. */
     if (!(end > start)) return null;
-    return { start, end };
+    return { start, end, type: hit.Type };
   };
 
-  return { intro: pick('Intro'), outro: pick('Outro') };
+  const items = data?.Items || [];
+  const pick = (type) => {
+    const hit = items.find((s) => s.Type === type);
+    return hit ? toRange(hit) : null;
+  };
+
+  /* Alles, was man ueberspringen kann — Intro, Rueckblick, Vorschau,
+     Werbung. Plugins wie Intro Skipper oder Chapter Segments liefern
+     sie. Das Outro gehoert nicht dazu: Dort bietet der Player die
+     naechste Folge an, statt einfach ans Ende zu springen. */
+  const skippable = items
+    .filter((s) => SKIPPABLE_SEGMENTS.includes(s.Type))
+    .map(toRange)
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start);
+
+  return { intro: pick('Intro'), outro: pick('Outro'), skippable };
 }
+
+/** Welche Abschnitte der Player zum Ueberspringen anbietet */
+const SKIPPABLE_SEGMENTS = ['Intro', 'Recap', 'Preview', 'Commercial'];
 
 /** Meldet dem Server, dass ein Transcode nicht mehr gebraucht wird. */
 async function stopTranscoding(playSessionId) {

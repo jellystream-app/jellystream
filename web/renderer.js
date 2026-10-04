@@ -325,6 +325,7 @@ let sessionExpiredHandled = false;
 function handleSessionExpired() {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
+  if (typeof syncplay !== 'undefined') syncplay.reset();
 
   try {
     localStorage.removeItem('jf-session');
@@ -340,6 +341,7 @@ function handleSessionExpired() {
 
   el.appShell.classList.add('hidden');
   el.loginScreen.classList.remove('hidden');
+  if (typeof showProfilePicker === 'function') showProfilePicker();
   setAuthError(t('auth.sessionExpiredLong'));
 
   const password = $('password');
@@ -626,7 +628,37 @@ function buildCard(item, options = {}) {
 
   card.append(inner, label);
 
+  /* Tastatur: Tab erreicht die Kachel, Enter oeffnet, Leertaste spielt.
+     Die Knoepfe darin bleiben aus der Tab-Reihenfolge — sonst braeuchte
+     man pro Kachel sieben Tabs. Sie sind ueber das Kontextmenue
+     (Menue-Taste oder Umschalt+F10) erreichbar. */
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', [item.Name || t('card.untitled'), defaultSubtitle(item)].filter(Boolean).join(', '));
+  body.querySelectorAll('button').forEach((btn) => { btn.tabIndex = -1; });
+
   card.addEventListener('click', () => openItem(item));
+
+  card.addEventListener('keydown', (event) => {
+    if (event.target !== card) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openItem(item);
+    } else if (event.key === ' ') {
+      event.preventDefault();
+      if (item.Type === 'Series') openItem(item);
+      else playItem(item);
+    } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      event.preventDefault();
+      const box = card.getBoundingClientRect();
+      openCardMenu(item, card, box.left + 24, box.top + 24);
+    }
+  });
+
+  card.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    openCardMenu(item, card, event.clientX, event.clientY);
+  });
 
   // Play startet direkt; ein Klick auf die Karte öffnet die Infoseite
   body.querySelector('.card-play').addEventListener('click', (event) => {
@@ -784,7 +816,11 @@ function buildRow(title, items, options = {}) {
 
   const scroll = document.createElement('div');
   scroll.className = 'row-scroll';
-  items.forEach((item) => scroll.appendChild(buildCard(item, options)));
+  items.forEach((item) => scroll.appendChild(buildCard(item, {
+    ...options,
+    // Untertitel je Kachel, z. B. das Erscheinungsdatum bei "Demnaechst"
+    subtitle: options.subtitleFor ? options.subtitleFor(item) : options.subtitle
+  })));
 
   const prev = document.createElement('button');
   prev.type = 'button';
@@ -919,9 +955,53 @@ function skeletonEpisodes(count = 4) {
   ).join('');
 }
 
-function showEmpty(message) {
-  el.viewRoot.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+/** Ein klickbares Element ohne eigenen Knopf (Folge, Titel) mit
+ *  Tastatur und Gamepad bedienbar machen: Tab erreicht es, Enter und
+ *  Leertaste loesen den Klick aus. */
+function makeActivatable(node, label) {
+  node.tabIndex = 0;
+  node.setAttribute('role', 'button');
+  if (label) node.setAttribute('aria-label', label);
+  node.addEventListener('keydown', (event) => {
+    if (event.target !== node) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      node.click();
+    }
+  });
 }
+
+/** Leerer Zustand mit optionalem Ausweg.
+ *
+ *  Nur "Keine Favoriten" zu lesen ist eine Sackgasse — wer nicht
+ *  weiss, wie man welche anlegt, bleibt dort stehen. Die Aktion zeigt
+ *  den naechsten Schritt. Gibt das Element zurueck, damit Aufrufer es
+ *  irgendwo einhaengen koennen. */
+function emptyState(message, action = null) {
+  const node = document.createElement('div');
+  node.className = 'empty-state';
+  const text = document.createElement('p');
+  text.textContent = message;
+  node.appendChild(text);
+
+  if (action?.label && typeof action.run === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'outline-btn small empty-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', action.run);
+    node.appendChild(btn);
+  }
+  return node;
+}
+
+function showEmpty(message, action = null) {
+  el.viewRoot.innerHTML = '';
+  el.viewRoot.appendChild(emptyState(message, action));
+}
+
+/** Ausweg, den fast jede leere Ansicht anbieten kann */
+const goHomeAction = () => ({ label: t('empty.discover'), run: () => navigate(showHome) });
 
 /* ============================ VIEWS ============================ */
 
@@ -1076,8 +1156,23 @@ async function showHome() {
     };
 
     const rows = homeRowOrder()
-      .map((key) => builders[key]?.())
+      .map((key) => {
+        const row = builders[key]?.();
+        if (row) row.dataset.rowKey = key;
+        return row;
+      })
       .filter(Boolean);
+
+    /* "Demnaechst": Folgen, die der Server schon kennt, aber die noch
+       nicht erschienen sind. Kommt nach "Als Naechstes" — wer gerade
+       eine Serie schaut, will wissen, wann es weitergeht. Nachgeladen,
+       damit die Startseite nicht darauf wartet. */
+    const upcomingAfter = rows.find((r) => r.dataset.rowKey === 'nextup') || rows[0];
+    loadUpcomingRow(seriesLib).then((row) => {
+      if (!row || !el.viewRoot.contains(upcomingAfter || el.viewRoot.firstChild)) return;
+      if (upcomingAfter) upcomingAfter.after(row);
+      else el.viewRoot.appendChild(row);
+    });
 
     if (!rows.length && !pool.length) {
       showEmpty(t('home.noMedia'));
@@ -1238,7 +1333,7 @@ const catalog = {
   /* types === null heißt „kein Typ-Filter" — openCatalog() überschreibt
      das ohnehin bei jedem Aufruf. */
   title: '', types: null, parentId: null, shape: 'wide',
-  sort: 'SortName-Ascending', filter: '', genre: '',
+  sort: 'SortName-Ascending', filter: '', genre: '', yearFrom: '', yearTo: '',
   items: [], total: 0, loading: false, done: false, observer: null
 };
 
@@ -1263,6 +1358,8 @@ function catalogQuery(startIndex) {
   if (catalog.parentId) params.ParentId = catalog.parentId;
   if (catalog.filter) params.Filters = catalog.filter;
   if (catalog.genre) params.Genres = catalog.genre;
+  if (catalog.yearFrom) params.MinPremiereDate = `${catalog.yearFrom}-01-01`;
+  if (catalog.yearTo)   params.MaxPremiereDate = `${catalog.yearTo}-12-31`;
   return itemsUrl(params);
 }
 
@@ -1300,12 +1397,28 @@ async function loadCatalogPage() {
     const counter = $('catalog-count');
     if (counter) {
       counter.textContent = catalog.done
-        ? `${catalog.items.length} Titel`
-        : `${catalog.items.length} von ${catalog.total}`;
+        ? t('catalog.count', { count: catalog.items.length })
+        : t('catalog.countOf', { count: catalog.items.length, total: catalog.total });
     }
 
     if (!catalog.items.length && grid) {
-      grid.innerHTML = `<div class="empty-state">${escapeHtml(t('catalog.noneForFilter'))}</div>`;
+      grid.innerHTML = '';
+      const base = catalog.opened || {};
+      const narrowed = catalog.yearFrom || catalog.yearTo
+        || (catalog.genre || '') !== (base.genre || '')
+        || (catalog.filter || '') !== (base.filter || '');
+
+      if (narrowed) {
+        grid.appendChild(emptyState(t('catalog.noneForFilter'), {
+          label: t('catalog.resetFilters'),
+          run: () => openCatalog(base)
+        }));
+      } else if (base.filter === 'IsFavorite') {
+        // Meine Liste ist leer: sagen, wie etwas hineinkommt
+        grid.appendChild(emptyState(t('empty.favorites'), goHomeAction()));
+      } else {
+        grid.appendChild(emptyState(t('catalog.noneForFilter'), goHomeAction()));
+      }
     }
   } catch (error) {
     if (!isCurrent('catalog', token)) return;
@@ -1365,6 +1478,12 @@ function renderCatalogShell(genres) {
         <button type="button" class="seg-btn" data-filter="IsUnplayed">${escapeHtml(t('filter.unwatched'))}</button>
         <button type="button" class="seg-btn" data-filter="IsPlayed">${escapeHtml(t('filter.watched'))}</button>
         <button type="button" class="seg-btn" data-filter="IsFavorite">${escapeHtml(t('filter.favorites'))}</button>
+      </div>
+
+      <div class="year-filter">
+        <input type="number" id="year-from" class="year-input" placeholder="${escapeHtml(t('catalog.yearFrom'))}" aria-label="${escapeHtml(t('catalog.yearFrom'))}" min="1888" max="2099" value="${catalog.yearFrom || ''}" />
+        <span class="year-sep">–</span>
+        <input type="number" id="year-to" class="year-input" placeholder="${escapeHtml(t('catalog.yearTo'))}" aria-label="${escapeHtml(t('catalog.yearTo'))}" min="1888" max="2099" value="${catalog.yearTo || ''}" />
       </div>
     </div>
 
@@ -1437,6 +1556,22 @@ function wireCatalogControls() {
     });
   });
 
+  /* Jahr-Filter: mit kleinem Debounce damit man in Ruhe tippen kann */
+  let yearTimer = null;
+  const wireYear = (id, prop) => {
+    const input = $(id);
+    if (!input) return;
+    input.addEventListener('input', () => {
+      clearTimeout(yearTimer);
+      yearTimer = setTimeout(() => {
+        catalog[prop] = input.value.trim();
+        restartCatalog();
+      }, 500);
+    });
+  };
+  wireYear('year-from', 'yearFrom');
+  wireYear('year-to', 'yearTo');
+
   // F1: genau ein Listener, der sich selbst abmeldet, sobald die Ansicht weg ist
   if (catalogOutsideClick) document.removeEventListener('click', catalogOutsideClick);
   catalogOutsideClick = (event) => {
@@ -1490,8 +1625,10 @@ async function openCatalog({ title, types = null, parentId = null, shape = 'wide
 
   Object.assign(catalog, {
     title, types, parentId, shape,
-    sort: 'SortName-Ascending', filter, genre,
-    items: [], total: 0, loading: false, done: false
+    sort: 'SortName-Ascending', filter, genre, yearFrom: '', yearTo: '',
+    items: [], total: 0, loading: false, done: false,
+    // Wie die Ansicht geoeffnet wurde — "Filter zuruecksetzen" fuehrt dorthin
+    opened: { title, types, parentId, shape, filter, genre }
   });
 
   if (catalog.observer) catalog.observer.disconnect();
@@ -1572,180 +1709,6 @@ function showLibrary(library) {
   });
 }
 
-/* ========================= LIVE TV =========================
-   Kanäle mit Logo und laufender Sendung. Keine
-   Programmzeitschrift — die wäre ein eigenes Zeitraster-Layout.
-
-   Kanäle sind für Jellyfin normale Titel: Der Klick spielt sie über
-   denselben Weg ab wie einen Film (siehe openItem und playVideo).
-   ============================================================ */
-
-async function showLiveTv(library = null) {
-  setActiveNav(null);
-  setTopGap(true);
-
-  if (library) {
-    document.querySelectorAll('.library-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.id === library.Id);
-    });
-    document.querySelectorAll('.nav-btn[data-library]').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.library === library.Id);
-    });
-  }
-
-  const token = newToken('livetv');
-  el.viewRoot.innerHTML = skeletonCards(12, 'wide');
-
-  try {
-    const { channels } = await fetchLiveTvChannels();
-    if (!isCurrent('livetv', token)) return;
-
-    const title = library?.Name || t('nav.liveTv');
-    el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(title)}</h2>`;
-
-    if (!channels.length) {
-      el.viewRoot.insertAdjacentHTML('beforeend',
-        `<div class="empty-state">${escapeHtml(t('liveTv.noChannels'))}</div>`);
-      setStatus(title);
-      return;
-    }
-
-    const grid = document.createElement('div');
-    grid.className = 'channel-grid';
-    channels.forEach((channel) => grid.appendChild(buildChannelCard(channel)));
-    el.viewRoot.appendChild(grid);
-
-    setStatus(title);
-  } catch (error) {
-    if (!isCurrent('livetv', token)) return;
-    console.error(error);
-    showError(t('common.loadFailed', { error: error.message }),
-      () => navigate(state.view, { push: false }));
-  }
-}
-
-/** Eine Kanalkachel: Logo, Nummer, Name, laufende Sendung.
- *
- *  Bewusst keine normale Karte: Ein Senderlogo ist meist ein
- *  freistehendes Bild mit Rand, kein formatfüllendes Plakat. In einer
- *  16:9-Kachel würde es beschnitten oder verzerrt — deshalb `contain`
- *  und eine eigene Form. */
-function buildChannelCard(channel) {
-  const { number, name } = channelLabel(channel);
-  const program = channel.CurrentProgram;
-  const progress = programProgress(program);
-
-  const card = document.createElement('article');
-  card.className = 'channel-card';
-  card.tabIndex = 0;
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', t('liveTv.watchAria', { name }));
-
-  const logo = imageUrl(channel, 'Primary', 220);
-
-  card.innerHTML = `
-    <div class="channel-logo">${
-      logo
-        ? `<img src="${escapeHtml(logo)}" alt="" loading="lazy" onerror="this.remove()">`
-        : `<span class="channel-initial">${escapeHtml((name || '?').charAt(0).toUpperCase())}</span>`
-    }</div>
-    <div class="channel-body">
-      <strong>${number ? `<span class="channel-number">${escapeHtml(number)}</span>` : ''}${escapeHtml(name)}</strong>
-      ${program
-        ? `<small>${escapeHtml(program.Name || '')}</small>`
-        : `<small class="channel-quiet">${escapeHtml(t('liveTv.noProgram'))}</small>`}
-      ${progress != null
-        ? `<span class="channel-bar"><i style="width:${Math.round(progress * 100)}%"></i></span>`
-        : ''}
-    </div>`;
-
-  const start = () => playVideo(channel);
-  card.addEventListener('click', start);
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      start();
-    }
-  });
-
-  return card;
-}
-
-/* X4: eigene Ansicht für Gemerktes */
-function showFavorites() {
-  setActiveNav('favorites');
-  return openCatalog({
-    title: t('nav.favorites'),
-    types: 'Movie,Series,MusicAlbum',
-    filter: 'IsFavorite'
-  });
-}
-
-async function showMusic() {
-  setActiveNav('music');
-  setTopGap(true);
-  showLoader();
-
-  try {
-    const albumFields = 'AlbumArtist,ProductionYear,DateCreated,ChildCount';
-
-    const [albums, artists, recent, favorites] = await Promise.all([
-      api(itemsUrl({
-        IncludeItemTypes: 'MusicAlbum',
-        Recursive: 'true',
-        SortBy: 'DateCreated',
-        SortOrder: 'Descending',
-        Fields: albumFields,
-        Limit: '40'
-      })).catch(() => null),
-      api(itemsUrl({
-        IncludeItemTypes: 'MusicArtist',
-        Recursive: 'true',
-        SortBy: 'SortName',
-        Limit: '30'
-      })).catch(() => null),
-      // Zuletzt Gehörtes: der häufigste Einstieg in die eigene Sammlung
-      api(itemsUrl({
-        IncludeItemTypes: 'MusicAlbum',
-        Recursive: 'true',
-        SortBy: 'DatePlayed',
-        SortOrder: 'Descending',
-        Filters: 'IsPlayed',
-        Fields: albumFields,
-        Limit: '20'
-      })).catch(() => null),
-      api(itemsUrl({
-        IncludeItemTypes: 'MusicAlbum',
-        Recursive: 'true',
-        SortBy: 'SortName',
-        Filters: 'IsFavorite',
-        Fields: albumFields,
-        Limit: '20'
-      })).catch(() => null)
-    ]);
-
-    el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('music.title'))}</h2>`;
-
-    const rows = [
-      buildRow(t('music.recentlyPlayed'), recent?.Items || [], { shape: 'square' }),
-      buildRow(t('music.favoriteAlbums'), favorites?.Items || [], { shape: 'square' }),
-      buildRow(t('music.recentAlbums'), albums?.Items || [], { shape: 'square' }),
-      buildRow(t('music.artists'), artists?.Items || [], { shape: 'square' })
-    ].filter(Boolean);
-
-    if (!rows.length) {
-      el.viewRoot.insertAdjacentHTML('beforeend', `<div class="empty-state">${escapeHtml(t('music.noMusic'))}</div>`);
-      return;
-    }
-
-    rows.forEach((row) => el.viewRoot.appendChild(row));
-    setStatus(t('music.title'));
-  } catch (error) {
-    console.error(error);
-    showError(t('common.loadFailed', { error: error.message }), () => navigate(state.view, { push: false }));
-  }
-}
-
 /* ======================= SERIES / SEASONS ======================= */
 
 const DETAIL_FIELDS =
@@ -1762,7 +1725,7 @@ async function showDetail(base) {
   const isEpisode = base.Type === 'Episode';
 
   try {
-    const [detail, seasonsData, similarData] = await Promise.all([
+    const [detail, seasonsData, similarData, localTrailersData] = await Promise.all([
       api(`/Users/${state.userId}/Items/${base.Id}?Fields=${DETAIL_FIELDS}`).catch(() => base),
       isSeries
         ? api(`/Shows/${base.Id}/Seasons?userId=${state.userId}&Fields=ProductionYear,ChildCount`).catch(() => null)
@@ -1771,12 +1734,17 @@ async function showDetail(base) {
          wenig hilfreich. Stattdessen unten die Folgen derselben Staffel. */
       isEpisode
         ? Promise.resolve(null)
-        : api(`/Items/${base.Id}/Similar?userId=${state.userId}&Limit=14&Fields=ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated`).catch(() => null)
+        : api(`/Items/${base.Id}/Similar?userId=${state.userId}&Limit=14&Fields=ProductionYear,Overview,RunTimeTicks,OfficialRating,CommunityRating,DateCreated`).catch(() => null),
+      /* Trailer: zuerst auf dem Server gespeicherte, dann Remote-Links aus den item-Metadaten */
+      api(`/Users/${state.userId}/Items/${base.Id}/LocalTrailers`).catch(() => null)
     ]);
 
     const item = detail || base;
     const seasons = seasonsData?.Items || [];
     const similar = similarData?.Items || [];
+    /* Trailer: lokale bevorzugt, Remote als Fallback */
+    const localTrailers = localTrailersData || [];
+    const remoteTrailers = (item.RemoteTrailers || []).filter((t) => t.Url);
 
     const backdrop = imageUrl(item, 'Backdrop', 1440) || imageUrl(item, 'Primary', 1440);
     /* Eine Folge hat ein Querformat-Standbild, kein Hochkant-Poster.
@@ -1841,6 +1809,9 @@ async function showDetail(base) {
               </button>
               ${isDownloadable(item) ? `<button class="outline-btn" id="detail-download" type="button"
                   data-dl-item="${escapeHtml(item.Id)}">${ICON_DOWNLOAD} ${escapeHtml(t('detail.download'))}</button>` : ''}
+              ${(localTrailers.length || remoteTrailers.length) ? `<button class="outline-btn" id="detail-trailer" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="8,5 19,12 8,19"/><rect x="3" y="5" width="3" height="14" rx="1"/></svg>
+                ${escapeHtml(t('detail.trailer'))}</button>` : ''}
             </div>
 
             ${item.Genres?.length ? `<div class="detail-tags">${item.Genres.map((g) =>
@@ -1929,6 +1900,19 @@ async function showDetail(base) {
 
     $('detail-download')?.addEventListener('click', () => openDownloadModal(item));
     if (typeof updateDownloadButtons === 'function') updateDownloadButtons();
+
+    /* Trailer-Button — lokaler Trailer hat Vorrang, sonst erster Remote-Link */
+    $('detail-trailer')?.addEventListener('click', () => {
+      if (localTrailers.length) {
+        /* Lokaler Trailer: läuft direkt im Video-Player */
+        playVideo(localTrailers[0], localTrailers);
+      } else if (remoteTrailers.length) {
+        /* Remote (meist YouTube): im externen Browser öffnen */
+        /* main.js oeffnet http(s) im Standardbrowser, im Web-Build
+           wird es ein neuer Tab. Die Seite selbst bleibt stehen. */
+        window.open(remoteTrailers[0].Url, '_blank', 'noopener');
+      }
+    });
 
     // Genre-Chips führen in den gefilterten Katalog
     el.viewRoot.querySelectorAll('.genre-chip[data-genre]').forEach((chip) => {
@@ -2441,6 +2425,7 @@ function buildEpisodeRow(episode, siblings) {
     </div>`;
 
   row.addEventListener('click', () => playVideo(episode, siblings));
+  makeActivatable(row, episode.Name || '');
 
   row.querySelector('.ep-dl')?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -2463,276 +2448,6 @@ function buildEpisodeRow(episode, siblings) {
     }
   });
 
-  return row;
-}
-
-/* ======================= ALBUM / TRACKS ======================= */
-
-async function showAlbum(album) {
-  setTopGap(false);
-  showLoader();
-
-  try {
-    const data = await api(itemsUrl({
-      ParentId: album.Id,
-      SortBy: 'ParentIndexNumber,IndexNumber,SortName',
-      Fields: 'Artists,AlbumArtist,RunTimeTicks'
-    }));
-
-    const tracks = data.Items || [];
-    const art = imageUrl(album, 'Primary', 600);
-
-    /* Gesamtlaufzeit aus den Titeln — Jellyfin liefert sie fürs
-       Album nicht mit. */
-    const totalTicks = tracks.reduce((sum, track) => sum + (track.RunTimeTicks || 0), 0);
-
-    const facts = [
-      album.ProductionYear ? String(album.ProductionYear) : '',
-      t('album.trackCount', { count: tracks.length }),
-      totalTicks ? formatRuntime(totalTicks) : '',
-      (album.Genres || []).slice(0, 2).join(', ')
-    ].filter(Boolean);
-
-    el.viewRoot.innerHTML = `
-      <section class="detail-hero">
-        <div class="detail-bg" style="background-image:url('${escapeHtml(art)}')"></div>
-        <div class="detail-inner">
-          <div class="detail-poster" style="aspect-ratio:1/1">${art ? `<img src="${escapeHtml(art)}" alt="">` : ''}</div>
-          <div class="detail-info">
-            <h2>${escapeHtml(album.Name || '')}</h2>
-            ${album.AlbumArtist ? `<button class="album-artist-link" id="album-artist" type="button">${escapeHtml(album.AlbumArtist)}</button>` : ''}
-            <div class="hero-facts">${facts.map(escapeHtml).join('<span class="sep"></span>')}</div>
-            <div class="hero-actions">
-              <button class="play-btn" id="album-play" type="button">
-                <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
-                ${escapeHtml(t('music.play'))}
-              </button>
-              <button class="outline-btn" id="album-shuffle" type="button">${escapeHtml(t('music.shuffle'))}</button>
-              ${window.downloads ? `<button class="outline-btn" id="album-download" type="button">${escapeHtml(t('download.albumAll'))}</button>` : ''}
-            </div>
-          </div>
-        </div>
-      </section>
-      <div class="mf-queue" id="track-list" style="overflow:visible"></div>`;
-
-    /* Klick auf den Interpreten führt zu dessen Seite — vorher war
-       der Name nur Text und die Musikbereiche nicht verbunden. */
-    const artistLink = $('album-artist');
-    if (artistLink) {
-      artistLink.addEventListener('click', async () => {
-        const found = await api(itemsUrl({
-          IncludeItemTypes: 'MusicArtist',
-          Recursive: 'true',
-          SearchTerm: album.AlbumArtist,
-          Limit: '1'
-        })).catch(() => null);
-
-        const artist = found?.Items?.[0];
-        if (artist) navigate(() => showArtist(artist));
-        else toast(t('artist.noAlbums'), true);
-      });
-    }
-
-    const list = $('track-list');
-
-    if (!tracks.length) {
-      list.innerHTML = `<div class="empty-state">${escapeHtml(t('album.noTracks'))}</div>`;
-      return;
-    }
-
-    tracks.forEach((track, index) => {
-      const item = document.createElement('div');
-      item.className = 'queue-item';
-      item.innerHTML = `
-        <span class="queue-num">${track.IndexNumber ?? index + 1}</span>
-        <div class="queue-body">
-          <div class="queue-title">${escapeHtml(track.Name || '')}</div>
-          <div class="queue-artist">${escapeHtml(track.Artists?.join(', ') || track.AlbumArtist || '')}</div>
-        </div>
-        <span class="queue-dur">${formatTime(ticksToSeconds(track.RunTimeTicks))}</span>
-        ${isDownloadable(track) ? `<button class="queue-dl" type="button"
-                data-dl-item="${escapeHtml(track.Id)}"
-                title="${escapeHtml(t('card.download'))}"
-                aria-label="${escapeHtml(t('card.download'))}">${ICON_DOWNLOAD}</button>` : ''}`;
-
-      // Klick auf das Symbol darf nicht zugleich den Titel starten
-      item.querySelector('.queue-dl')?.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const entry = offlineEntry(track.Id);
-        if (entry) return toast(t('offline.alreadyDownloaded'));
-        openDownloadModal({ ...track, Album: track.Album || album.Name, AlbumId: track.AlbumId || album.Id });
-      });
-
-      item.addEventListener('click', () => music.play(tracks, index));
-      list.appendChild(item);
-    });
-
-    updateDownloadButtons();
-
-    $('album-download')?.addEventListener('click', () => {
-      /* Album- und Interpretennamen ergänzen: In der Titelliste fehlen
-         sie mitunter, und ohne sie fände die Gruppierung nicht statt. */
-      const enriched = tracks.map((track) => ({
-        ...track,
-        Album: track.Album || album.Name,
-        AlbumId: track.AlbumId || album.Id,
-        AlbumArtist: track.AlbumArtist || album.AlbumArtist
-      }));
-      downloadAlbum(album, enriched);
-    });
-
-    $('album-play').addEventListener('click', () => music.play(tracks, 0));
-    $('album-shuffle').addEventListener('click', () => {
-      music.shuffle = true;
-      music.play(tracks, Math.floor(Math.random() * tracks.length));
-      $('mf-shuffle').classList.add('active');
-    });
-
-    setStatus(album.Name || 'Album');
-  } catch (error) {
-    console.error(error);
-    showError(t('album.loadFailed', { error: error.message }), () => navigate(state.view, { push: false }));
-  }
-}
-
-async function showArtist(artist) {
-  setTopGap(false);
-  showLoader();
-
-  try {
-    /* Alles parallel holen — die Seite soll nicht dreimal
-       nacheinander warten. */
-    const [detail, albumData, topTracks] = await Promise.all([
-      api(`/Users/${state.userId}/Items/${artist.Id}?Fields=Overview,Genres`).catch(() => artist),
-      api(itemsUrl({
-        AlbumArtistIds: artist.Id,
-        IncludeItemTypes: 'MusicAlbum',
-        Recursive: 'true',
-        SortBy: 'ProductionYear,SortName',
-        SortOrder: 'Descending',
-        Fields: 'AlbumArtist,ProductionYear,DateCreated,ChildCount'
-      })).catch(() => null),
-      api(itemsUrl({
-        ArtistIds: artist.Id,
-        IncludeItemTypes: 'Audio',
-        Recursive: 'true',
-        SortBy: 'PlayCount,SortName',
-        SortOrder: 'Descending',
-        Limit: '10',
-        Fields: 'Artists,AlbumArtist,RunTimeTicks,Album,AlbumId'
-      })).catch(() => null)
-    ]);
-
-    const item = detail || artist;
-    const albums = albumData?.Items || [];
-    const tracks = topTracks?.Items || [];
-    const backdrop = imageUrl(item, 'Backdrop', 900);
-    const portrait = imageUrl(item, 'Primary', 500);
-
-    const facts = [
-      albums.length ? t('artist.albumCount', { count: albums.length }) : '',
-      (item.Genres || []).slice(0, 3).join(', ')
-    ].filter(Boolean);
-
-    el.viewRoot.innerHTML = `
-      <section class="detail-hero artist-hero">
-        <div class="detail-bg" style="background-image:url('${escapeHtml(backdrop || portrait)}')"></div>
-        <div class="detail-inner">
-          <div class="artist-portrait">${portrait ? `<img src="${escapeHtml(portrait)}" alt="">` : ''}</div>
-          <div class="detail-info">
-            <h2>${escapeHtml(item.Name || '')}</h2>
-            ${facts.length ? `<div class="hero-facts">${facts.map(escapeHtml).join('<span class="sep"></span>')}</div>` : ''}
-            ${item.Overview ? `<p class="hero-overview artist-bio">${escapeHtml(item.Overview)}</p>` : ''}
-            <div class="hero-actions">
-              <button class="play-btn" id="artist-play" type="button">
-                <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
-                ${escapeHtml(t('music.play'))}
-              </button>
-              <button class="outline-btn" id="artist-shuffle" type="button">${escapeHtml(t('music.shuffle'))}</button>
-            </div>
-          </div>
-        </div>
-      </section>
-      <div id="artist-body"></div>`;
-
-    const body = $('artist-body');
-
-    /* Beliebte Titel: der schnellste Weg, etwas von diesem
-       Interpreten zu hören. */
-    if (tracks.length) {
-      const section = document.createElement('section');
-      section.className = 'row';
-      section.innerHTML = `<div class="row-head"><h3>${escapeHtml(t('artist.topTracks'))}</h3></div>
-        <div class="mf-queue" id="artist-tracks" style="overflow:visible"></div>`;
-      body.appendChild(section);
-
-      const host = $('artist-tracks');
-      tracks.forEach((track, index) => {
-        host.appendChild(buildTrackRow(track, index, tracks, { showAlbum: true }));
-      });
-    }
-
-    if (albums.length) {
-      const section = document.createElement('section');
-      section.className = 'row';
-      section.innerHTML = `<div class="row-head"><h3>${escapeHtml(t('music.albums'))}</h3>
-        <span class="row-count">${albums.length}</span></div>`;
-      const grid = document.createElement('div');
-      grid.className = 'grid squares';
-      albums.forEach((album) => grid.appendChild(buildCard(album, { shape: 'square' })));
-      section.appendChild(grid);
-      body.appendChild(section);
-    }
-
-    if (!albums.length && !tracks.length) {
-      body.innerHTML = `<div class="empty-state">${escapeHtml(t('artist.noAlbums'))}</div>`;
-    }
-
-    const startAll = async (shuffle) => {
-      // Alle Titel des Interpreten, nicht nur die zehn beliebtesten
-      const all = await api(itemsUrl({
-        ArtistIds: artist.Id, IncludeItemTypes: 'Audio', Recursive: 'true',
-        SortBy: shuffle ? 'Random' : 'Album,ParentIndexNumber,IndexNumber',
-        Fields: 'Artists,AlbumArtist,RunTimeTicks,Album,AlbumId', Limit: '300'
-      })).catch(() => null);
-
-      const list = all?.Items || tracks;
-      if (!list.length) return toast(t('album.noTracks'), true);
-      music.shuffle = shuffle;
-      music.play(list, 0);
-    };
-
-    $('artist-play').addEventListener('click', () => startAll(false));
-    $('artist-shuffle').addEventListener('click', () => startAll(true));
-
-    setStatus(item.Name || '');
-  } catch (error) {
-    console.error(error);
-    showError(t('common.loadFailed', { error: error.message }), () => navigate(state.view, { push: false }));
-  }
-}
-
-/* Eine Titelzeile — von Album und Interpretenseite gemeinsam genutzt,
-   damit beide gleich aussehen und sich gleich verhalten. */
-function buildTrackRow(track, index, queue, { showAlbum = false } = {}) {
-  const row = document.createElement('div');
-  row.className = 'queue-item';
-
-  const art = showAlbum ? imageUrl(track, 'Primary', 120) : '';
-  const subtitle = showAlbum
-    ? (track.Album || track.Artists?.join(', ') || '')
-    : (track.Artists?.join(', ') || track.AlbumArtist || '');
-
-  row.innerHTML = `
-    <span class="queue-num">${index + 1}</span>
-    ${art ? `<img class="queue-art" src="${escapeHtml(art)}" alt="" loading="lazy">` : ''}
-    <div class="queue-body">
-      <div class="queue-title">${escapeHtml(track.Name || '')}</div>
-      ${subtitle ? `<div class="queue-artist">${escapeHtml(subtitle)}</div>` : ''}
-    </div>
-    <span class="queue-dur">${formatTime(ticksToSeconds(track.RunTimeTicks))}</span>`;
-
-  row.addEventListener('click', () => music.play(queue, index));
   return row;
 }
 
@@ -2791,26 +2506,85 @@ function playItem(item) {
 /* ============================ SEARCH ============================ */
 
 let searchTimer = null;
+const recentSearchesEl = $('recent-searches-dropdown');
+const RECENT_SEARCHES_KEY = 'jf-recent-searches';
+const RECENT_SEARCHES_MAX = 8;
+
+function loadRecentSearches() {
+  try { return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveRecentSearch(term) {
+  if (!term) return;
+  const list = loadRecentSearches().filter((s) => s !== term);
+  list.unshift(term);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list.slice(0, RECENT_SEARCHES_MAX)));
+}
+
+function renderRecentSearches() {
+  const list = loadRecentSearches();
+  if (!list.length) {
+    recentSearchesEl.classList.add('hidden');
+    return;
+  }
+  recentSearchesEl.innerHTML = `
+    <div class="rs-header">
+      <span>${escapeHtml(t('search.recent'))}</span>
+      <button class="rs-clear" type="button">${escapeHtml(t('search.clearRecent'))}</button>
+    </div>
+    <ul class="rs-list">
+      ${list.map((s) => `<li><button class="rs-item" type="button">${escapeHtml(s)}</button></li>`).join('')}
+    </ul>`;
+
+  recentSearchesEl.querySelector('.rs-clear').addEventListener('click', (e) => {
+    e.stopPropagation();
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    recentSearchesEl.classList.add('hidden');
+  });
+
+  recentSearchesEl.querySelectorAll('.rs-item').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // blur-Event nicht auslösen
+      const term = btn.textContent;
+      el.searchInput.value = term;
+      recentSearchesEl.classList.add('hidden');
+      runSearch(term);
+    });
+  });
+
+  recentSearchesEl.classList.remove('hidden');
+}
 
 el.searchToggle.addEventListener('click', () => {
   const wasCollapsed = el.searchBox.classList.contains('collapsed');
   el.searchBox.classList.remove('collapsed');
   if (wasCollapsed) {
     el.searchInput.focus();
+    if (!el.searchInput.value.trim()) renderRecentSearches();
   } else if (!el.searchInput.value.trim()) {
+    recentSearchesEl.classList.add('hidden');
     el.searchBox.classList.add('collapsed');
   }
 });
 
 // Leeres Feld beim Verlassen wieder einklappen
 el.searchInput.addEventListener('blur', () => {
-  if (!el.searchInput.value.trim()) el.searchBox.classList.add('collapsed');
+  setTimeout(() => {           // kurze Verzögerung, damit mousedown-Klicks greifen
+    recentSearchesEl.classList.add('hidden');
+    if (!el.searchInput.value.trim()) el.searchBox.classList.add('collapsed');
+  }, 150);
+});
+
+el.searchInput.addEventListener('focus', () => {
+  if (!el.searchInput.value.trim()) renderRecentSearches();
 });
 
 el.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     el.searchInput.value = '';
     el.searchInput.blur();
+    recentSearchesEl.classList.add('hidden');
     el.searchBox.classList.add('collapsed');
     state.history = [];
     el.backBtn.classList.add('hidden');
@@ -2823,12 +2597,14 @@ el.searchInput.addEventListener('input', () => {
   const term = el.searchInput.value.trim();
 
   if (!term) {
+    renderRecentSearches();
     navigate(showHome, { push: false });
     state.history = [];
     el.backBtn.classList.add('hidden');
     return;
   }
 
+  recentSearchesEl.classList.add('hidden');
   searchTimer = setTimeout(() => runSearch(term), 320);
 });
 
@@ -2848,11 +2624,21 @@ async function runSearch(term) {
     }));
     if (!isCurrent('search', token)) return;
 
+    // Erfolgreiche Suche merken
+    saveRecentSearch(term);
+
     const items = data.Items || [];
     el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('search.heading', { term }))}</h2>`;
 
     if (!items.length) {
-      el.viewRoot.insertAdjacentHTML('beforeend', '<div class="empty-state">Nichts gefunden.</div>');
+      el.viewRoot.appendChild(emptyState(t('search.noResults', { term }), {
+        label: t('search.clear'),
+        run: () => {
+          el.searchInput.value = '';
+          el.searchInput.focus();
+          renderRecentSearches();
+        }
+      }));
       return;
     }
 
@@ -2887,7 +2673,12 @@ el.connectForm.addEventListener('submit', async (event) => {
   const username = $('username').value.trim();
   const password = $('password').value;
 
-  if (!rawServerUrl || !username || !password) {
+  /* Ein leeres Passwort ist erlaubt, wenn der Server fuer dieses Konto
+     keines kennt (Profilauswahl, HasPassword: false) — Jellyfin
+     erlaubt solche Konten, etwa fuer Kinder. */
+  const passwordless = typeof profiles !== 'undefined' && profiles.publicUsers
+    .some((u) => u.Name === username && u.HasPassword === false);
+  if (!rawServerUrl || !username || (!password && !passwordless)) {
     setAuthError(t('auth.missingFields'));
     return;
   }
@@ -2910,12 +2701,12 @@ el.connectForm.addEventListener('submit', async (event) => {
 
     if (el.rememberMe.checked) {
       try {
-        localStorage.setItem('jf-session', JSON.stringify({
+        vault.setJSON('jf-session', {
           serverUrl: activeUrl,
           token: auth.accessToken,
           userId: auth.userId,
           username: auth.userName
-        }));
+        });
       } catch (error) {
         /* ignorieren */
       }
@@ -3018,7 +2809,7 @@ const NAV_LIBRARY_LIMIT = 4;
 /* Ansichten, die es als Reiter schon gibt. Heißt eine Bibliothek
    genauso ("Playlists", "Sammlungen"), stünde der Name sonst zweimal
    in der Leiste. */
-const NAV_RESERVED_KEYS = ['nav.favorites', 'nav.playlists', 'nav.offline', 'nav.home'];
+const NAV_RESERVED_KEYS = ['nav.favorites', 'nav.playlists', 'nav.offline', 'nav.home', 'nav.calendar', 'nav.stats'];
 
 /* Welche Bibliotheken schon als Reiter dastehen. Das Menü hebt sie
    hervor, statt sie wortgleich zu wiederholen. */
@@ -3161,10 +2952,13 @@ const VIEWS = {
   home: showHome,
   movies: () => showCatalog('movies'),
   series: () => showCatalog('series'),
-  music: showMusic,
+  // Pfeilfunktion: showMusic steht in views/music.js, das spaeter laedt
+  music: () => showMusic(),
   favorites: () => showFavorites(),
   playlists: () => showPlaylists(),
-  offline: () => showOffline()
+  offline: () => showOffline(),
+  stats: () => showStats(),
+  calendar: () => showCalendar()
 };
 
 // Logo führt zur Startseite
@@ -3187,6 +2981,9 @@ document.querySelectorAll('.nav-btn[data-view]').forEach((btn) => {
 function closeMenus() {
   el.libraryMenu.classList.add('hidden');
   el.profileMenu.classList.add('hidden');
+  $('syncplay-menu')?.classList.add('hidden');
+  $('syncplay-btn')?.classList.remove('open');
+  $('syncplay-btn')?.setAttribute('aria-expanded', 'false');
   el.libraryToggle.classList.remove('open');
   el.libraryToggle.setAttribute('aria-expanded', 'false');
   el.profileBtn.classList.remove('open');
@@ -3226,6 +3023,8 @@ el.mainPanel.addEventListener('scroll', () => {
 });
 
 el.disconnectBtn.addEventListener('click', () => {
+  // Eine laufende Gruppe verlassen, sonst bleibt man beim Server darin
+  if (typeof syncplay !== 'undefined' && syncplay.active) syncplay.leave().catch(() => {});
   try {
     localStorage.removeItem('jf-session');
   } catch (error) {
@@ -3253,12 +3052,13 @@ el.disconnectBtn.addEventListener('click', () => {
   el.appShell.classList.add('hidden');
   el.loginScreen.classList.remove('hidden');
   setAuthError('');
+  if (typeof showProfilePicker === 'function') showProfilePicker();
 });
 
 async function restoreSession() {
   let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem('jf-session') || 'null');
+    saved = vault.getJSON('jf-session');
   } catch (error) {
     return;
   }
@@ -3372,7 +3172,7 @@ function initTitleBar() {
   const applyState = ({ maximized }) => {
     maxBtn.querySelector('.ic-max').classList.toggle('hidden', maximized);
     maxBtn.querySelector('.ic-restore').classList.toggle('hidden', !maximized);
-    maxBtn.title = maximized ? 'Wiederherstellen' : 'Maximieren';
+    maxBtn.title = maximized ? t('window.restore') : t('window.maximize');
   };
 
   controls.onStateChange(applyState);
@@ -3388,5 +3188,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const version = $('login-version');
   if (version) version.textContent = `v${window.appInfo?.version || ''}`;
 
-  restoreSession();
+  await restoreSession();
+  // Kein Konto wiederhergestellt: dann zeigen, wer schauen kann
+  if (!state.token && !offline.mode && typeof showProfilePicker === 'function') showProfilePicker();
 });

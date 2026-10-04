@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' http: https: data: blob:; media-src 'self' http: https: blob:; connect-src 'self' http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      content="default-src 'self'; img-src 'self' http: https: data: blob:; media-src 'self' http: https: blob:; connect-src 'self' http: https: ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     />
     <title>Jellystream</title>
     <meta name="description" content="Jellystream — schlanker Client für deinen Jellyfin-Medienserver." />
@@ -17,6 +17,7 @@
     <!-- Ersetzt die Electron-Bruecken. Muss vor allen anderen Skripten
          laufen: renderer.js liest window.appInfo beim Laden. -->
     <script src="web-bridge.js"></script>
+    <link rel="stylesheet" href="styles/features.css" />
   </head>
   <body>
     <!-- ========================== TITLE BAR ========================== -->
@@ -50,6 +51,13 @@
           <h2 data-i18n="login.welcome">Willkommen zurück</h2>
           <p data-i18n="login.intro">Melde dich an deinem Server an, um fortzufahren.</p>
         </div>
+
+        <!-- Wer schaut? Gespeicherte Konten und die oeffentlichen
+             Benutzer des eingetragenen Servers — ein Klick statt Tippen -->
+        <section id="profile-picker" class="profile-picker hidden" aria-labelledby="profile-picker-title">
+          <h3 id="profile-picker-title" data-i18n="profiles.title">Wer schaut?</h3>
+          <div id="profile-list" class="profile-list" role="list"></div>
+        </section>
 
         <form id="connect-form" class="connect-form" autocomplete="on">
           <div class="field">
@@ -132,6 +140,8 @@
             <button class="nav-btn" data-view="favorites" type="button" data-i18n="nav.favorites">Meine Liste</button>
             <button class="nav-btn" data-view="playlists" type="button" data-i18n="nav.playlists">Playlists</button>
             <button class="nav-btn" data-view="offline" type="button" data-i18n="nav.offline">Offline</button>
+            <button class="nav-btn" data-view="calendar" type="button" data-i18n="nav.calendar">Kalender</button>
+            <button class="nav-btn" data-view="stats" type="button" data-i18n="nav.stats">Statistiken</button>
 
             <span class="nav-divider"></span>
 
@@ -154,7 +164,21 @@
             <button class="search-icon" id="search-toggle" type="button" data-i18n-title="nav.search" title="Suchen" data-i18n-aria="nav.search" aria-label="Suchen">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
-            <input id="search-input" type="search" data-i18n-placeholder="nav.searchPlaceholder" placeholder="Suchen" spellcheck="false" data-i18n-aria="nav.search" aria-label="Suchen" />
+            <input id="search-input" type="search" data-i18n-placeholder="nav.searchPlaceholder" placeholder="Suchen" spellcheck="false" data-i18n-aria="nav.search" aria-label="Suchen" autocomplete="off" />
+            <div id="recent-searches-dropdown" class="recent-searches-dropdown hidden"></div>
+          </div>
+
+          <!-- SyncPlay: gemeinsam schauen -->
+          <div class="nav-dropdown">
+            <button id="syncplay-btn" class="icon-btn syncplay-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                    data-i18n-title="syncplay.title" data-i18n-aria="syncplay.title" title="Gemeinsam schauen" aria-label="Gemeinsam schauen">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="9" r="3"/><path d="M2.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6M13.6 15c.9-.4 1.9-.6 2.9-.6 2.7 0 4.9 1.6 5.5 4.6"/></svg>
+              <span class="syncplay-dot" aria-hidden="true"></span>
+            </button>
+            <div id="syncplay-menu" class="dropdown-menu syncplay-menu hidden" role="dialog" aria-labelledby="syncplay-heading">
+              <h4 id="syncplay-heading" data-i18n="syncplay.title">Gemeinsam schauen</h4>
+              <div id="syncplay-body"></div>
+            </div>
           </div>
 
           <div class="nav-dropdown">
@@ -218,6 +242,7 @@
             <strong id="vp-title" data-i18n="player.play">Wiedergabe</strong>
             <span id="vp-subtitle"></span>
           </div>
+          <span id="vp-syncplay" class="vp-syncplay hidden" aria-live="polite"></span>
           <span id="vp-method" class="vp-method"></span>
         </div>
 
@@ -462,6 +487,11 @@
               <span data-i18n="settings.catServers">Server</span>
             </button>
 
+            <button class="settings-cat" type="button" data-cat="trakt">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+              <span data-i18n="settings.catTrakt">Trakt.tv</span>
+            </button>
+
             <button class="settings-cat" type="button" data-cat="about">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.4"/></svg>
               <span data-i18n="settings.catAbout">Über</span>
@@ -558,6 +588,13 @@
                     <small data-i18n="settings.reduceMotionHint">Übergänge und Bewegungen abschalten</small>
                   </span>
                   <input type="checkbox" id="set-reduce-motion" class="switch" />
+                </label>
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="settings.tvMode">Sofa-Modus</strong>
+                    <small data-i18n="settings.tvModeHint">Größere Schrift und Rahmen, Bedienung mit Pfeiltasten, Fernbedienung oder Gamepad</small>
+                  </span>
+                  <input type="checkbox" id="set-tv-mode" class="switch" />
                 </label>
               </section>
 
@@ -656,6 +693,18 @@
                   </span>
                   <input type="checkbox" id="set-nextup" class="switch" checked />
                 </label>
+
+                <!-- Abschnitte, die Plugins wie Intro Skipper markieren -->
+                <div class="setting-stack" id="autoskip-row">
+                  <strong data-i18n="settings.autoSkip">Automatisch überspringen</strong>
+                  <small class="settings-hint" data-i18n="settings.autoSkipHint">Braucht ein Plugin auf dem Server, das die Abschnitte erkennt (z. B. Intro Skipper). Sonst erscheint gar kein Knopf.</small>
+                  <div class="autoskip-chips" role="group" data-i18n-aria="settings.autoSkip" aria-label="Automatisch überspringen">
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Intro" /><span data-i18n="segment.Intro">Intro</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Recap" /><span data-i18n="segment.Recap">Rückblick</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Preview" /><span data-i18n="segment.Preview">Vorschau</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Commercial" /><span data-i18n="segment.Commercial">Werbung</span></label>
+                  </div>
+                </div>
 
                 <div class="slider-row">
                   <label for="start-volume" data-i18n="settings.startVolume">Startlautstärke</label>
@@ -829,6 +878,14 @@
                 <div id="settings-servers" class="settings-servers"></div>
               </section>
 
+              <!-- Jugendschutz: setzt die Richtlinie des Servers je Konto,
+                   damit die Grenze auch in jeder anderen App gilt -->
+              <section class="settings-section">
+                <h3 data-i18n="parental.title">Jugendschutz</h3>
+                <p class="settings-hint" data-i18n="parental.hint">Legt fest, bis zu welcher Altersfreigabe ein Konto Inhalte sieht. Die Grenze gilt auf dem Server — also auch in der Jellyfin-App, im Browser und auf dem Fernseher.</p>
+                <div id="parental-list" class="parental-list"></div>
+              </section>
+
               <section class="settings-section">
                 <h3 data-i18n="sync.title">Bibliothek abgleichen</h3>
                 <p class="settings-hint" data-i18n="sync.hint">Jellystream zeigt immer den aktuellen Stand des Servers — ein Abgleich ist nur nötig, wenn der Server selbst noch nichts von neuen Dateien weiß.</p>
@@ -861,6 +918,63 @@
                 <h3 data-i18n="plugins.title">Plugins</h3>
                 <p class="settings-hint" data-i18n="plugins.hint">Was Jellystream von den Erweiterungen des Servers nutzen kann, verwendet es automatisch.</p>
                 <div id="settings-plugins" class="settings-plugins"></div>
+              </section>
+            </div>
+
+            <!-- ============ TRAKT.TV ============ -->
+            <div class="settings-panel" data-panel="trakt">
+              <section class="settings-section">
+                <h3 data-i18n="trakt.title">Trakt.tv</h3>
+                <p class="settings-hint" data-i18n="trakt.hint">Trägt Gesehenes automatisch in dein Trakt-Konto ein.</p>
+
+                <div class="setting-stack" id="trakt-app-row">
+                  <label for="trakt-client-id" data-i18n="trakt.clientId">Client ID</label>
+                  <small class="settings-hint" data-i18n="trakt.appHint">Lege unter trakt.tv eine eigene Anwendung an (Redirect URI: urn:ietf:wg:oauth:2.0:oob) und trage Client ID und Client Secret hier ein. Beides wird verschlüsselt gespeichert.</small>
+                  <div class="field-input">
+                    <input id="trakt-client-id" type="text" spellcheck="false" autocomplete="off" />
+                  </div>
+                  <label for="trakt-client-secret" data-i18n="trakt.clientSecret">Client Secret</label>
+                  <div class="field-input">
+                    <input id="trakt-client-secret" type="password" spellcheck="false" autocomplete="off" />
+                  </div>
+                  <a class="settings-link" href="https://trakt.tv/oauth/applications/new" target="_blank" rel="noopener noreferrer"
+                     data-i18n="trakt.createApp">Anwendung bei Trakt anlegen</a>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.account">Konto</strong>
+                    <small id="trakt-status-text" aria-live="polite">—</small>
+                  </span>
+                  <span class="dl-dir-actions">
+                    <button id="trakt-connect" class="outline-btn small" type="button" data-i18n="trakt.connect">Verbinden</button>
+                    <button id="trakt-disconnect" class="outline-btn small hidden" type="button" data-i18n="trakt.disconnect">Trennen</button>
+                  </span>
+                </div>
+                <div class="trakt-code hidden" id="trakt-code-box" aria-live="polite">
+                  <span data-i18n="trakt.enterCode">Gib diesen Code auf trakt.tv ein:</span>
+                  <strong id="trakt-code"></strong>
+                  <button class="outline-btn small" id="trakt-cancel" type="button" data-i18n="login.cancel">Abbrechen</button>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.auto">Automatisch eintragen</strong>
+                    <small data-i18n="trakt.autoHint">Ab 80 % Wiedergabe gilt ein Titel auf Trakt als gesehen</small>
+                  </span>
+                  <input type="checkbox" id="trakt-auto" class="switch" />
+                </label>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.pushHistory">Verlauf übertragen</strong>
+                    <small data-i18n="trakt.pushHistoryHint">Sendet alle in Jellyfin gesehenen Filme und Folgen an Trakt</small>
+                  </span>
+                  <button id="trakt-sync-now" class="outline-btn small" type="button" data-i18n="sync.now" disabled>Jetzt abgleichen</button>
+                </div>
+                <div class="sync-status" id="trakt-sync-result" aria-live="polite"></div>
               </section>
             </div>
 
@@ -1040,15 +1154,26 @@
 
     <audio id="audio-el"></audio>
 
+    <script src="core/vault.js"></script>
     <script src="core/i18n.js"></script>
     <script src="core/libraries.js"></script>
     <script src="core/livetv.js"></script>
     <script src="core/libsync.js"></script>
+    <script src="core/trakt.js"></script>
+    <script src="core/syncplay.js"></script>
     <script src="i18n-dom.js"></script>
     <script src="renderer.js"></script>
+    <script src="views/cardmenu.js"></script>
+    <script src="views/calendar.js"></script>
+    <script src="views/livetv.js"></script>
+    <script src="views/music.js"></script>
+    <script src="views/stats.js"></script>
     <script src="core/playback.js"></script>
     <script src="offline.js"></script>
     <script src="player.js"></script>
+    <script src="syncplay-ui.js"></script>
     <script src="settings.js"></script>
+    <script src="profiles.js"></script>
+    <script src="tvmode.js"></script>
   </body>
 </html>

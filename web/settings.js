@@ -30,6 +30,9 @@ const prefs = {
   theme: 'midnight',
   accent: '#1ecad3',
   autoplayNext: true,
+  /* Abschnitte, die ohne Nachfrage uebersprungen werden: { Intro: true, … }.
+     Leer = immer nur den Knopf anbieten. */
+  autoSkip: {},
   preferSubtitles: false,
   resumePlayback: true,
   subSize: 1,
@@ -60,6 +63,7 @@ const prefs = {
   cardShapes: {},
   navFromLibraries: true,
   reduceMotion: false,
+  tvMode: false,        // Sofa: groesser, Pfeiltasten bewegen den Fokus (tvmode.js)
 
   /* Woher der Aufbau kommt: 'jellystream' (feste Reiter und Reihen,
      wie bisher) oder 'jellyfin' (Reihenfolge und Abschnitte, wie im
@@ -74,6 +78,9 @@ const prefs = {
   discordRpc: false,        // aus, bis der Nutzer es ausdruecklich will
   discordShowTitle: true,   // greift nur, wenn discordRpc an ist
   discordAppId: DISCORD_APP_ID, // eigene ID moeglich, siehe unten
+
+  /* --- Trakt.tv --- */
+  traktAuto: false,         // nach Wiedergabe automatisch als gesehen markieren
 
   /* --- Eigenes CSS --- */
   customCss: '',
@@ -116,11 +123,18 @@ function applySubtitleStyle() {
   // Textspur-Container selbst nach oben geschoben.
   document.documentElement.style.setProperty('--sub-lift', `${prefs.subPosition}px`);
 
+  /* Die Vorschau zeigt alles, was auch im Film greift — vorher fehlten
+     Schrift, Umrandung und Hoehe, und man sah das Ergebnis erst beim
+     naechsten Abspielen. */
   const preview = $('sub-preview');
   if (preview) {
     preview.style.setProperty('--sub-scale', prefs.subSize);
-    preview.style.setProperty('--sub-bg', prefs.subBg);
+    preview.style.setProperty('--sub-bg', prefs.subOutline ? 0 : prefs.subBg);
     preview.style.setProperty('--sub-color', prefs.subColor);
+    preview.style.setProperty('--sub-font', SUB_FONTS[prefs.subFont] || SUB_FONTS.system);
+    preview.style.setProperty('--sub-shadow', outline);
+    // Die Vorschau ist kleiner als ein Film: Hoehe anteilig andeuten
+    preview.style.setProperty('--sub-preview-lift', `${Math.min(40, Math.round((prefs.subPosition || 0) / 4))}px`);
   }
 }
 
@@ -340,7 +354,7 @@ function toast(message, isError = false) {
 
 function loadServers() {
   try {
-    return JSON.parse(localStorage.getItem('jf-servers') || '[]');
+    return vault.getJSON('jf-servers', []) || [];
   } catch (error) {
     return [];
   }
@@ -348,7 +362,7 @@ function loadServers() {
 
 function saveServers(servers) {
   try {
-    localStorage.setItem('jf-servers', JSON.stringify(servers));
+    vault.setJSON('jf-servers', servers);
   } catch (error) {
     console.warn('Server konnten nicht gespeichert werden');
   }
@@ -517,12 +531,14 @@ async function switchToServer(entry) {
 
   music.stop();
   closeVideo();
+  // Die Gruppe gehoert zum alten Server
+  if (typeof syncplay !== 'undefined') syncplay.reset();
 
   try {
-    localStorage.setItem('jf-session', JSON.stringify({
+    vault.setJSON('jf-session', {
       serverUrl: state.serverUrl, token: state.token,
       userId: state.userId, username: state.username
-    }));
+    });
   } catch (error) {
     /* ignorieren */
   }
@@ -857,6 +873,7 @@ async function openSettings() {
   renderSettingsServers();
   renderCardShapeLibraries();
   renderPluginList();
+  renderParentalControls();
   buildSeekStepOptions();
   renderLanguageList();
 
@@ -879,6 +896,9 @@ async function openSettings() {
 
   /* --- Wiedergabe --- */
   $('set-nextup').checked = prefs.showNextup;
+  document.querySelectorAll('[data-autoskip]').forEach((box) => {
+    box.checked = Boolean(prefs.autoSkip?.[box.dataset.autoskip]);
+  });
   $('start-volume').value = prefs.startVolume;
   $('start-volume-val').textContent = `${Math.round(prefs.startVolume * 100)} %`;
   $('seek-step').value = String(prefs.seekStep);
@@ -900,6 +920,7 @@ async function openSettings() {
   $('card-shape').value = prefs.cardShape;
   $('set-nav-libraries').checked = prefs.navFromLibraries;
   $('set-reduce-motion').checked = prefs.reduceMotion;
+  $('set-tv-mode').checked = Boolean(prefs.tvMode);
 
   /* --- Eigenes CSS --- */
   $('css-editor').value = prefs.customCss || '';
@@ -985,6 +1006,13 @@ $('sub-color').addEventListener('input', (e) => {
 
 $('set-nextup').addEventListener('change', (e) => { prefs.showNextup = e.target.checked; savePrefs(); });
 
+document.querySelectorAll('[data-autoskip]').forEach((box) => {
+  box.addEventListener('change', () => {
+    prefs.autoSkip = { ...(prefs.autoSkip || {}), [box.dataset.autoskip]: box.checked };
+    savePrefs();
+  });
+});
+
 $('start-volume').addEventListener('input', (e) => {
   prefs.startVolume = Number(e.target.value);
   $('start-volume-val').textContent = `${Math.round(prefs.startVolume * 100)} %`;
@@ -1056,6 +1084,12 @@ $('set-nav-libraries').addEventListener('change', (e) => {
 $('set-reduce-motion').addEventListener('change', (e) => {
   prefs.reduceMotion = e.target.checked;
   applyInterface();
+  savePrefs();
+});
+
+$('set-tv-mode').addEventListener('change', (e) => {
+  prefs.tvMode = e.target.checked;
+  if (typeof applyTvMode === 'function') applyTvMode();
   savePrefs();
 });
 
@@ -1467,10 +1501,10 @@ async function startQuickConnect() {
         state.username = auth.User.Name;
 
         try {
-          localStorage.setItem('jf-session', JSON.stringify({
+          vault.setJSON('jf-session', {
             serverUrl: url, token: auth.AccessToken,
             userId: auth.User.Id, username: auth.User.Name
-          }));
+          });
         } catch (error) {
           /* ignorieren */
         }
@@ -1838,6 +1872,9 @@ function onLanguageChanged() {
   if (typeof renderSettingsServers === 'function' && $('settings-servers')) renderSettingsServers();
   if (typeof renderCardShapeLibraries === 'function') renderCardShapeLibraries();
   refreshDownloadSettings();
+  if (typeof updateTraktUi === 'function') updateTraktUi();
+  // Tray-Menue spricht dieselbe Sprache wie die App
+  if (typeof mediaControl !== 'undefined') mediaControl.report();
 
   // Werte mit Einheiten neu formatieren
   const subPos = $('sub-position-val');
@@ -1909,15 +1946,169 @@ function selectControl({ options, value, onChange }) {
 /* Was Jellystream von einem Plugin tatsaechlich nutzt. Der
    Schluessel ist der Name, wie Jellyfin ihn meldet, kleingeschrieben
    und ohne Leerzeichen — Schreibweisen wechseln zwischen Fassungen. */
+/* Ehrlich unterteilt:
+   - 'plugins.usedX'   Jellystream liest die Daten aktiv aus und zeigt
+                       eine eigene Funktion dafuer.
+   - 'plugins.usedServer'  Das Plugin arbeitet auf dem Server (Metadaten,
+                       Bilder, Untertitel, Sammlungen). Jellystream zeigt
+                       das Ergebnis, weil es die Daten des Servers zeigt —
+                       ohne eigenes Zutun.
+   Alles andere bringt eine eigene Oberflaeche in der Jellyfin-Weboberflaeche
+   mit, die sich in einer fremden App nicht nachbauen laesst. */
 const PLUGIN_SUPPORT = {
-  introskipper: 'plugins.usedIntro',
-  intros: 'plugins.usedIntro',
-  mediasegmentsapi: 'plugins.usedIntro'
+  introskipper: 'plugins.usedSegments',
+  intros: 'plugins.usedSegments',
+  mediasegmentsapi: 'plugins.usedSegments',
+  chaptersegments: 'plugins.usedSegments',
+  chaptersegmentsprovider: 'plugins.usedSegments',
+  edlsegments: 'plugins.usedSegments',
+  lrclib: 'plugins.usedLyrics',
+  lyrics: 'plugins.usedLyrics',
+  // Scrobbelt selbst auf dem Server; Jellystream hat zusaetzlich eine eigene Anbindung
+  trakt: 'plugins.usedServer',
+  playbackreporting: 'plugins.usedServer',
+  tmdb: 'plugins.usedServer',
+  tmdbbox: 'plugins.usedServer',
+  tmdbboxsets: 'plugins.usedServer',
+  themoviedb: 'plugins.usedServer',
+  tvdb: 'plugins.usedServer',
+  thetvdb: 'plugins.usedServer',
+  omdb: 'plugins.usedServer',
+  fanart: 'plugins.usedServer',
+  opensubtitles: 'plugins.usedServer',
+  opensubtitlesorg: 'plugins.usedServer',
+  musicbrainz: 'plugins.usedServer',
+  audiodb: 'plugins.usedServer',
+  theaudiodb: 'plugins.usedServer',
+  anidb: 'plugins.usedServer',
+  anilist: 'plugins.usedServer',
+  studioimages: 'plugins.usedServer',
+  autocollections: 'plugins.usedServer',
+  smartplaylist: 'plugins.usedServer',
+  localintros: 'plugins.usedServer',
+  cinemamode: 'plugins.usedServer',
+  livetv: 'plugins.usedServer',
+  iptv: 'plugins.usedServer',
+  m3u: 'plugins.usedServer',
+  hdhomerun: 'plugins.usedServer',
+  tvheadend: 'plugins.usedServer'
 };
 
 function pluginSupportKey(name) {
   const key = String(name || '').toLowerCase().replace(/[^a-z]/g, '');
   return PLUGIN_SUPPORT[key] || null;
+}
+
+/* ==================== JUGENDSCHUTZ ====================
+   Jellystream filtert nicht selbst: Ein clientseitiger Filter waere
+   mit jeder anderen App umgangen. Stattdessen wird die Richtlinie des
+   Servers gesetzt (MaxParentalRating je Konto) — die gilt ueberall.
+
+   Dafuer braucht es ein Administratorkonto. Fuer alle anderen zeigt
+   der Abschnitt nur, welche Grenze fuer sie selbst gilt.
+   ====================================================== */
+
+async function renderParentalControls() {
+  const host = $('parental-list');
+  if (!host) return;
+  host.innerHTML = `<p class="settings-hint">${escapeHtml(t('common.loading'))}</p>`;
+
+  let me;
+  let ratings = [];
+  try {
+    [me, ratings] = await Promise.all([
+      api(`/Users/${state.userId}`),
+      api('/Localization/ParentalRatings').catch(() => [])
+    ]);
+  } catch (error) {
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('parental.unavailable'))}</p>`;
+    return;
+  }
+
+  /* Die Liste des Servers enthaelt je Stufe mehrere Namen (FSK-12,
+     PG-13, …). Je Wert einer genuegt, die Namen werden zusammengefasst. */
+  const levels = new Map();
+  (ratings || []).forEach((r) => {
+    const value = r.Value ?? r.RatingScore?.Score;
+    if (value == null) return;
+    const names = levels.get(value) || [];
+    if (names.length < 3) names.push(r.Name);
+    levels.set(value, names);
+  });
+  const options = [...levels.entries()].sort((a, b) => a[0] - b[0]);
+
+  const describe = (value) => (value == null
+    ? t('parental.none')
+    : (levels.get(value) || [String(value)]).join(' / '));
+
+  if (!me?.Policy?.IsAdministrator) {
+    host.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'settings-hint';
+    p.textContent = t('parental.ownLimit', { limit: describe(me?.Policy?.MaxParentalRating ?? null) });
+    host.appendChild(p);
+    return;
+  }
+
+  let users = [];
+  try {
+    users = await api('/Users');
+  } catch (error) {
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('parental.unavailable'))}</p>`;
+    return;
+  }
+
+  host.innerHTML = '';
+  users.forEach((user) => {
+    const row = document.createElement('div');
+    row.className = 'setting-row parental-row';
+
+    const label = document.createElement('span');
+    label.innerHTML = `${avatarMarkup({
+      username: user.Name, userId: user.Id, serverUrl: state.serverUrl, imageTag: user.PrimaryImageTag
+    }, 34, 'server-face')}<strong></strong>`;
+    label.className = 'parental-user';
+    label.querySelector('strong').textContent = user.Name;
+
+    const select = document.createElement('select');
+    select.className = 'select-input';
+    select.setAttribute('aria-label', t('parental.limitFor', { name: user.Name }));
+    const current = user.Policy?.MaxParentalRating ?? null;
+    select.innerHTML = `<option value="">${escapeHtml(t('parental.none'))}</option>` +
+      options.map(([value]) =>
+        `<option value="${value}" ${value === current ? 'selected' : ''}>${escapeHtml(describe(value))}</option>`).join('');
+
+    // Admins schraenkt man nicht ueber diesen Weg ein — man sperrt sich sonst selbst aus
+    if (user.Policy?.IsAdministrator) {
+      select.disabled = true;
+      select.title = t('parental.adminHint');
+    }
+
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      const value = select.value === '' ? null : Number(select.value);
+      try {
+        /* Die ganze Richtlinie zuruecksenden: Der Server ersetzt sie,
+           fehlende Felder wuerden sonst zurueckgesetzt. Frisch holen,
+           damit eine Aenderung von anderswo nicht ueberschrieben wird. */
+        const fresh = await api(`/Users/${user.Id}`);
+        await api(`/Users/${user.Id}/Policy`, {
+          method: 'POST',
+          body: JSON.stringify({ ...fresh.Policy, MaxParentalRating: value })
+        });
+        user.Policy = { ...fresh.Policy, MaxParentalRating: value };
+        toast(t('parental.saved', { name: user.Name, limit: describe(value) }));
+      } catch (error) {
+        select.value = current == null ? '' : String(current);
+        toast(t('common.error', { error: error.message }), true);
+      } finally {
+        select.disabled = false;
+      }
+    });
+
+    row.append(label, select);
+    host.appendChild(row);
+  });
 }
 
 async function renderPluginList() {
@@ -1958,7 +2149,7 @@ async function renderPluginList() {
             ? ` · ${escapeHtml(String(plugin.Status))}` : ''
         }</small>
       </span>
-      <span class="plugin-use ${supportKey ? 'used' : ''}">${escapeHtml(
+      <span class="plugin-use ${supportKey ? 'used' : ''} ${supportKey === 'plugins.usedServer' ? 'server' : ''}">${escapeHtml(
         supportKey ? t(supportKey) : t('plugins.notUsed')
       )}</span>`;
 
@@ -2223,3 +2414,129 @@ loadPrefs();
 
 // Erst jetzt — vorher waeren es noch die Standardwerte
 initDiscordPresence();
+
+/* ===================== TRAKT.TV =====================
+   Die Logik steckt in core/trakt.js; hier nur Bedienung und Anzeige.
+   ===================================================== */
+
+let traktAuthCancelled = false;
+
+function updateTraktUi() {
+  const statusText = $('trakt-status-text');
+  if (!statusText || typeof trakt === 'undefined') return;
+
+  const configured = trakt.configured();
+  const connected = trakt.connected();
+  const cfg = trakt.config();
+
+  const idInput = $('trakt-client-id');
+  const secretInput = $('trakt-client-secret');
+  // Nicht ueberschreiben, waehrend jemand tippt
+  if (document.activeElement !== idInput) idInput.value = cfg.clientId;
+  if (document.activeElement !== secretInput) secretInput.value = cfg.clientSecret;
+
+  statusText.textContent = connected
+    ? t('trakt.connectedAs', { name: trakt.username() || '—' })
+    : configured ? t('trakt.notConnected') : t('trakt.notConfigured');
+  statusText.classList.toggle('ok', connected);
+
+  $('trakt-connect').classList.toggle('hidden', connected);
+  $('trakt-connect').disabled = !configured;
+  $('trakt-disconnect').classList.toggle('hidden', !connected);
+  $('trakt-sync-now').disabled = !connected;
+  $('trakt-auto').checked = Boolean(prefs.traktAuto);
+  $('trakt-auto').disabled = !connected;
+}
+
+function saveTraktConfig() {
+  trakt.setConfig($('trakt-client-id').value, $('trakt-client-secret').value);
+  updateTraktUi();
+}
+
+$('trakt-client-id')?.addEventListener('change', saveTraktConfig);
+$('trakt-client-secret')?.addEventListener('change', saveTraktConfig);
+
+$('trakt-auto')?.addEventListener('change', (event) => {
+  prefs.traktAuto = event.target.checked;
+  savePrefs();
+});
+
+function traktErrorText(error) {
+  const known = { denied: 'trakt.denied', expired: 'trakt.expired', cancelled: 'trakt.cancelled' };
+  return known[error.message] ? t(known[error.message]) : t('common.error', { error: error.message });
+}
+
+$('trakt-connect')?.addEventListener('click', async () => {
+  const btn = $('trakt-connect');
+  const box = $('trakt-code-box');
+  saveTraktConfig();
+  btn.disabled = true;
+  traktAuthCancelled = false;
+
+  try {
+    const device = await trakt.startDeviceAuth();
+    $('trakt-code').textContent = device.user_code;
+    box.classList.remove('hidden');
+    // main.js oeffnet http(s)-Links im Standardbrowser
+    window.open(device.verification_url, '_blank', 'noopener');
+
+    const username = await trakt.pollDeviceAuth(device, () => traktAuthCancelled);
+    toast(t('trakt.connectedAs', { name: username || '—' }));
+  } catch (error) {
+    if (error.message !== 'cancelled') toast(traktErrorText(error), true);
+  } finally {
+    box.classList.add('hidden');
+    btn.disabled = false;
+    updateTraktUi();
+  }
+});
+
+$('trakt-cancel')?.addEventListener('click', () => {
+  traktAuthCancelled = true;
+  $('trakt-code-box').classList.add('hidden');
+});
+
+$('trakt-disconnect')?.addEventListener('click', () => {
+  trakt.disconnect();
+  updateTraktUi();
+  toast(t('trakt.disconnected'));
+});
+
+/* Verlauf aus Jellyfin an Trakt — seitenweise, damit grosse
+   Bibliotheken weder den Server noch Trakt mit einer Riesenanfrage
+   belasten. */
+async function fetchAllPlayed(type) {
+  const PAGE = 1000;
+  const items = [];
+  for (let start = 0; ; start += PAGE) {
+    const page = await api(itemsUrl({
+      IncludeItemTypes: type, Recursive: 'true', Filters: 'IsPlayed',
+      Fields: 'ProviderIds,ProductionYear', StartIndex: String(start), Limit: String(PAGE)
+    }));
+    items.push(...(page?.Items || []));
+    if (!page?.Items?.length || items.length >= (page.TotalRecordCount || 0)) break;
+  }
+  return items;
+}
+
+$('trakt-sync-now')?.addEventListener('click', async () => {
+  const btn = $('trakt-sync-now');
+  const result = $('trakt-sync-result');
+  btn.disabled = true;
+  result.textContent = t('trakt.syncing');
+
+  try {
+    const [movies, episodes] = await Promise.all([fetchAllPlayed('Movie'), fetchAllPlayed('Episode')]);
+    const sent = await trakt.pushHistory([...movies, ...episodes]);
+    const msg = t('trakt.syncDone', { movies: sent.movies, episodes: sent.episodes, skipped: sent.skipped });
+    result.textContent = msg;
+    toast(msg);
+  } catch (error) {
+    result.textContent = traktErrorText(error);
+    toast(traktErrorText(error), true);
+  } finally {
+    updateTraktUi();
+  }
+});
+
+updateTraktUi();

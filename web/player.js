@@ -107,8 +107,16 @@ function mediaDuration() {
   return Number.isFinite(own) && own > 0 ? own : full;
 }
 
-/** Springt an eine Stelle im Film — auch ueber die Grenze des Streams. */
+/** Springt an eine Stelle im Film — so, wie der Nutzer es will.
+ *  In einer SyncPlay-Gruppe wird nur gefragt: Der Server laesst dann
+ *  alle gleichzeitig springen (syncplay-ui.js ruft seekToDirect). */
 function seekTo(seconds) {
+  if (typeof syncPlayIntercept === 'function' && syncPlayIntercept('seek', Math.max(0, seconds))) return;
+  seekToDirect(seconds);
+}
+
+/** Springt wirklich — auch ueber die Grenze des Streams. */
+function seekToDirect(seconds) {
   /* Im laufenden Fernsehen gibt es keine Stelle, an die man springen
      koennte. Ohne diese Sperre wuerde jeder Pfeiltastendruck den
      Stream neu anfordern — und der Kanal faengt einfach wieder jetzt
@@ -284,7 +292,12 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false, play
     mediaSourceId: mediaSourceId || item.Id,
     isTranscoding,
     kind,
-    timer: null
+    timer: null,
+    /* Der Titel selbst, nicht nur seine Kennung: Beim Wechsel zur
+       naechsten Folge steht in vpCurrent.item schon die neue, wenn
+       diese Session abgemeldet wird. Trakt bekaeme sonst die falsche. */
+    item,
+    live: kind === 'video' && Boolean(vpCurrent.live)
   };
   reporting[kind] = session;
 
@@ -350,6 +363,18 @@ function stopReporting(kind, positionSeconds = null) {
     PlaySessionId: session.playSessionId,
     PositionTicks: Math.round(position * TICKS_PER_SECOND)
   });
+
+  /* Trakt: ab 80 % melden. Trakt traegt dann selbst als gesehen ein;
+     darunter wuerde nur ein angefangener Titel gemeldet. Lokal
+     gespielte Downloads zaehlen genauso. Live-TV hat keine Dauer. */
+  if (kind === 'video' && prefs.traktAuto && typeof trakt !== 'undefined' && !session.live) {
+    const item = session.item;
+    const duration = ticksToSeconds(item?.RunTimeTicks) || mediaDuration();
+    const percent = duration > 0 ? (position / duration) * 100 : 0;
+    if (item && percent >= 80) {
+      trakt.scrobble(item, percent).catch((error) => console.warn('Trakt:', error.message));
+    }
+  }
 }
 
 /* Beim Schliessen des Fensters die Position noch sichern.
@@ -400,6 +425,14 @@ function toggleIcons(button, playing) {
 }
 
 async function playVideo(item, siblings = [], options = {}) {
+  /* In einer SyncPlay-Gruppe startet ein Titel fuer alle: Er geht als
+     Warteschlange an den Server, der ihn dann bei jedem laden laesst
+     (mit options.syncStart). Live und Downloads gehen nicht gemeinsam. */
+  if (options.syncStart == null && !options.localFile && item?.Type !== 'TvChannel'
+      && typeof syncPlayStart === 'function' && syncPlayStart(item, siblings)) {
+    return;
+  }
+
   vpQueue = siblings.length ? siblings : [item];
   vpIndex = vpQueue.findIndex((entry) => entry.Id === item.Id);
   if (vpIndex < 0) vpIndex = 0;
@@ -447,8 +480,10 @@ async function playVideo(item, siblings = [], options = {}) {
   let source = null;
   let detail = null;
   try {
-    detail = await api(`/Users/${state.userId}/Items/${item.Id}?Fields=MediaSources,MediaStreams,Chapters`);
+    detail = await api(`/Users/${state.userId}/Items/${item.Id}?Fields=MediaSources,MediaStreams,Chapters,ProviderIds`);
     source = detail?.MediaSources?.[0] || null;
+    // Kennungen fuer Trakt — Titel aus Listen bringen sie nicht immer mit
+    if (detail?.ProviderIds && !item.ProviderIds) item = { ...item, ProviderIds: detail.ProviderIds };
   } catch (error) {
     console.warn('Spuren konnten nicht geladen werden:', error);
   }
@@ -501,6 +536,9 @@ async function playVideo(item, siblings = [], options = {}) {
   buildQualityMenu();
   buildChapterUi();
 
+  // Trickplay-Thumbnails für den Scrubber vorladen
+  loadTrickplayInfo(item.Id);
+
   /* Intro-Marken nachladen, ohne die Wiedergabe darauf warten zu
      lassen: Der Film soll nicht spaeter anfangen, weil ein Plugin
      befragt wird, das es vielleicht gar nicht gibt. Das Intro liegt
@@ -529,10 +567,12 @@ async function playVideo(item, siblings = [], options = {}) {
 
   /* Live faengt immer jetzt an: eine gemerkte Position gehoerte zu
      einer Sendung, die laengst vorbei ist. */
-  const resumeAt = !isLive && prefs.resumePlayback
-    ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0)
-    : 0;
-  loadVideoSource(resumeAt);
+  const resumeAt = options.syncStart != null
+    ? options.syncStart // die Gruppe bestimmt die Stelle
+    : !isLive && prefs.resumePlayback
+      ? ticksToSeconds(item.UserData?.PlaybackPositionTicks || 0)
+      : 0;
+  await loadVideoSource(resumeAt);
 }
 
 /* ---------------------- Offline-Wiedergabe ----------------------
@@ -683,6 +723,8 @@ async function loadVideoSource(startAt = 0) {
   if (plan.seekHandledByServer) vpCurrent.serverSeekOffset = startAt;
   else vpCurrent.serverSeekOffset = 0;
 
+  // In einer Gruppe startet erst der Befehl des Servers — fuer alle zugleich
+  if (typeof syncplay !== 'undefined' && syncplay.active) return;
   vp.video.play().catch((error) => console.warn('Autoplay blockiert:', error));
 }
 
@@ -1034,6 +1076,9 @@ vp.play.addEventListener('click', togglePlayVideo);
 vp.centerPlay.addEventListener('click', togglePlayVideo);
 
 function togglePlayVideo() {
+  // In einer SyncPlay-Gruppe entscheidet der Server, wann alle starten
+  if (typeof syncPlayIntercept === 'function'
+      && syncPlayIntercept(vp.video.paused ? 'play' : 'pause')) return;
   if (vp.video.paused) vp.video.play();
   else vp.video.pause();
 }
@@ -1114,30 +1159,74 @@ vp.video.addEventListener('progress', () => {
    ============================================================ */
 
 /* Wer den Knopf ignoriert, soll ihn nicht die ganze Zeit sehen; wer
-   ihn wegklickt, gar nicht mehr. */
-let skipDismissed = false;
+   ihn wegklickt, gar nicht mehr — je Abschnitt. Ein weggeklicktes
+   Intro heisst nicht, dass man auch die Werbung sehen will. */
+const skipDismissed = new Set();
+let skipCurrent = null;
+
+/* Text des Knopfs je Abschnitt (Intro Skipper, Chapter Segments & Co.) */
+const SKIP_LABELS = {
+  Intro: 'player.skipIntro',
+  Recap: 'player.skipRecap',
+  Preview: 'player.skipPreview',
+  Commercial: 'player.skipCommercial'
+};
 
 function hideSkip() {
   vp.skip?.classList.add('hidden');
+  skipCurrent = null;
 }
 
 function resetSkip() {
-  skipDismissed = false;
+  skipDismissed.clear();
   hideSkip();
+}
+
+const skipKey = (segment) => `${segment.type}@${segment.start}`;
+
+/** Alle ueberspringbaren Abschnitte — aeltere Aufrufer setzen nur intro */
+function skipSegments() {
+  const seg = vpCurrent.segments || {};
+  if (Array.isArray(seg.skippable) && seg.skippable.length) return seg.skippable;
+  return seg.intro ? [{ ...seg.intro, type: 'Intro' }] : [];
 }
 
 /** Prüft bei jedem Zeitfortschritt, ob der Knopf sichtbar sein soll. */
 function updateSkip(position) {
   if (!vp.skip) return;
 
-  const intro = vpCurrent.segments?.intro;
-  if (!intro || skipDismissed) return hideSkip();
-
-  /* Etwas Vorlauf: Steht die Wiedergabe eine Sekunde vor dem Intro,
+  /* Etwas Vorlauf: Steht die Wiedergabe eine Sekunde vor dem Abschnitt,
      ist der Knopf schon da — sonst erscheint er im Moment, in dem man
      ihn braucht, und wird uebersehen. */
-  const visible = position >= Math.max(0, intro.start - 1) && position < intro.end;
-  vp.skip.classList.toggle('hidden', !visible);
+  const segment = skipSegments().find((s) =>
+    position >= Math.max(0, s.start - 1) && position < s.end
+    && !skipDismissed.has(skipKey(s)));
+  if (!segment) return hideSkip();
+
+  /* Automatisch ueberspringen, wenn so eingestellt — aber erst, wenn
+     der Abschnitt wirklich begonnen hat, nicht schon im Vorlauf. */
+  const inGroup = typeof syncplay !== 'undefined' && syncplay.active;
+  if (prefs.autoSkip?.[segment.type] && position >= segment.start && !inGroup) {
+    skipSegment(segment);
+    toast(t(`player.skipped${segment.type}`));
+    return;
+  }
+
+  if (skipCurrent !== segment) {
+    skipCurrent = segment;
+    const label = vp.skip.querySelector('span');
+    if (label) label.textContent = t(SKIP_LABELS[segment.type] || 'player.skipIntro');
+  }
+  vp.skip.classList.remove('hidden');
+}
+
+function skipSegment(segment) {
+  /* Ein Sprung an das genaue Ende landet gelegentlich noch im letzten
+     Bild des Abschnitts — der Knopf blitzte dann erneut auf. Ein Viertel
+     Sekunde darueber ist unsichtbar und verhindert das. */
+  seekTo(segment.end + 0.25);
+  skipDismissed.add(skipKey(segment));
+  hideSkip();
 }
 
 /** Beginnt hier der Abspann?
@@ -1156,16 +1245,10 @@ function outroReached(position) {
 }
 
 vp.skip?.addEventListener('click', () => {
-  const intro = vpCurrent.segments?.intro;
-  if (!intro) return hideSkip();
-
-  /* Ein Sprung an das genaue Ende landet gelegentlich noch im letzten
-     Bild des Intros — der Knopf blitzte dann erneut auf. Ein Viertel
-     Sekunde darueber ist unsichtbar und verhindert das. */
-  seekTo(intro.end + 0.25);
-
-  skipDismissed = true;
-  hideSkip();
+  const segment = skipCurrent
+    || skipSegments().find((s) => mediaPosition() >= s.start - 1 && mediaPosition() < s.end);
+  if (!segment) return hideSkip();
+  skipSegment(segment);
 });
 
 /* U8: Nächste Folge mit Countdown statt hartem Sprung */
@@ -1308,6 +1391,78 @@ function seekFromEvent(event) {
   }
 }
 
+/* Trickplay-Thumbnails im Scrubber
+   Jellyfin liefert Thumbnails als JPEG-Kacheln unter
+   /Videos/{id}/Trickplay/{width}/{index}.jpg
+   Die Metadaten (wie viele Kacheln, welche Breite) kommen aus dem
+   MediaSource-Info-Aufruf – wir fragen sie einmal ab und cachen sie. */
+
+let trickplay = null; // { interval, width, tileWidth, tileHeight, available }
+
+async function loadTrickplayInfo(itemId) {
+  trickplay = null;
+  if (!itemId || !state.serverUrl) return;
+  try {
+    const data = await api(`/Videos/${itemId}/Trickplay?enableImages=true`);
+    // Antwortformat: { [width]: { Interval, TileWidth, TileHeight, ThumbnailCount, ... } }
+    if (!data || typeof data !== 'object') return;
+    const widths = Object.keys(data).map(Number).sort((a, b) => b - a);
+    if (!widths.length) return;
+    // Bevorzuge 320 px, sonst die nächstgrößere verfügbare Breite
+    const preferred = widths.find((w) => w <= 320) || widths[widths.length - 1];
+    const info = data[preferred];
+    if (!info) return;
+    trickplay = {
+      interval:   (info.Interval   || 10000) / 10000000, // Ticks → Sekunden
+      width:      preferred,
+      tileWidth:  info.TileWidth  || preferred,
+      tileHeight: info.TileHeight || Math.round(preferred * 9 / 16),
+      count:      info.ThumbnailCount || 0
+    };
+  } catch {
+    /* nicht verfügbar – kein Fehler anzeigen */
+  }
+}
+
+/* Thumbnail-Element im hoverTime-Container erzeugen */
+const trickplayImg = document.createElement('img');
+trickplayImg.className = 'vp-tp-img';
+trickplayImg.alt = '';
+vp.hoverTime.insertAdjacentElement('afterbegin', trickplayImg);
+const trickplayTime = document.createElement('span');
+trickplayTime.className = 'vp-tp-time';
+vp.hoverTime.appendChild(trickplayTime);
+/* Den originalen Textinhalt (der für alte Browser): leeren */
+vp.hoverTime.childNodes.forEach((n) => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+
+function updateTrickplayThumb(ratio) {
+  const total = mediaDuration() || 0;
+  const seconds = ratio * total;
+  trickplayTime.textContent = formatTime(seconds);
+
+  if (!trickplay || !total) {
+    trickplayImg.classList.add('hidden');
+    return;
+  }
+
+  const frameIndex = Math.floor(seconds / trickplay.interval);
+  if (frameIndex >= trickplay.count) {
+    trickplayImg.classList.add('hidden');
+    return;
+  }
+
+  const url = `${state.serverUrl}/Videos/${vpCurrent.item?.Id}/Trickplay/${trickplay.width}/${frameIndex}.jpg`
+    + `?MediaSourceId=${vpCurrent.mediaSourceId || ''}&api_key=${state.token || ''}`;
+
+  if (trickplayImg.dataset.src !== url) {
+    trickplayImg.dataset.src = url;
+    trickplayImg.src = url;
+    trickplayImg.style.width  = `${trickplay.tileWidth}px`;
+    trickplayImg.style.height = `${trickplay.tileHeight}px`;
+  }
+  trickplayImg.classList.remove('hidden');
+}
+
 vp.scrub.addEventListener('mousedown', (event) => {
   vpScrubbing = true;
   seekFromEvent(event);
@@ -1316,8 +1471,8 @@ vp.scrub.addEventListener('mousedown', (event) => {
 vp.scrub.addEventListener('mousemove', (event) => {
   const rect = vp.scrub.getBoundingClientRect();
   const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-  vp.hoverTime.textContent = formatTime(ratio * (mediaDuration() || 0));
   vp.hoverTime.style.left = `${ratio * 100}%`;
+  updateTrickplayThumb(ratio);
   if (vpScrubbing) seekFromEvent(event);
 });
 
@@ -1382,6 +1537,36 @@ function updateMuteIcon() {
   const muted = vp.video.muted || vp.video.volume === 0;
   vp.mute.querySelector('.ic-vol').classList.toggle('hidden', muted);
   vp.mute.querySelector('.ic-muted').classList.toggle('hidden', !muted);
+}
+
+/* Mausrad auf dem Player-Bereich → Lautstärke ändern */
+vp.root.addEventListener('wheel', (event) => {
+  if (!vpCurrent.item) return;
+  event.preventDefault();
+  const delta = event.deltaY < 0 ? 0.05 : -0.05;
+  const newVol = Math.min(Math.max(vp.video.volume + delta, 0), 1);
+  vp.video.volume = newVol;
+  vp.video.muted = newVol === 0;
+  vp.volume.value = newVol;
+  updateMuteIcon();
+  saveVolume(newVol, vp.video.muted);
+
+  /* Kurzes OSD-Toast damit der Nutzer sieht, was sich getan hat */
+  showVolumeOsd(newVol);
+}, { passive: false });
+
+let _volOsdTimer = null;
+function showVolumeOsd(vol) {
+  let osd = document.getElementById('vp-vol-osd');
+  if (!osd) {
+    osd = document.createElement('div');
+    osd.id = 'vp-vol-osd';
+    vp.ui.appendChild(osd);
+  }
+  osd.textContent = `🔊 ${Math.round(vol * 100)} %`;
+  osd.classList.add('visible');
+  clearTimeout(_volOsdTimer);
+  _volOsdTimer = setTimeout(() => osd.classList.remove('visible'), 1200);
 }
 
 /* --- Geschwindigkeit --- */
@@ -2082,11 +2267,98 @@ document.querySelectorAll('.mf-tab').forEach((tab) => {
   });
 });
 
-/* --- Systemsteuerung (Medientasten) --- */
+/* --- Systemsteuerung: Medientasten und Tray ---
+
+   Eine Stelle entscheidet, wohin ein "Play/Pause" geht: Laeuft ein
+   Video, hat es Vorrang, sonst die Musik. Medientasten der Tastatur
+   kommen ueber navigator.mediaSession — Chromium reicht sie nur dann
+   herein, wenn hier gerade etwas spielt, und blockiert sie nicht fuer
+   andere Programme (anders als globalShortcut). */
+
+const mediaControl = {
+  videoActive() {
+    return vpCurrent.item !== null && !vp.root.classList.contains('hidden');
+  },
+
+  playPause() {
+    if (this.videoActive()) togglePlayVideo();
+    else if (music.current) music.toggle();
+  },
+
+  next() {
+    if (this.videoActive()) {
+      const nextItem = vpQueue[vpIndex + 1];
+      if (nextItem) playVideo(nextItem, vpQueue);
+    } else if (music.current) {
+      music.next();
+    }
+  },
+
+  prev() {
+    if (this.videoActive()) {
+      // Wie bei Musik: erst an den Anfang, erst beim zweiten Druck zurueck
+      const prevItem = vpQueue[vpIndex - 1];
+      if (mediaPosition() > 5 || !prevItem) seekTo(0);
+      else playVideo(prevItem, vpQueue);
+    } else if (music.current) {
+      music.prev();
+    }
+  },
+
+  stop() {
+    if (this.videoActive()) closeVideo();
+    else music.stop();
+    this.report();
+  },
+
+  /* Tray-Menue auf Stand bringen: was laeuft, ob es laeuft, und die
+     Beschriftungen in der eingestellten Sprache. */
+  report() {
+    if (!window.tray) return;
+    const video = this.videoActive();
+    const item = video ? vpCurrent.item : music.current;
+    const playing = video ? !vp.video.paused : Boolean(music.current && !mp.audio.paused);
+    const title = !item ? '' : item.SeriesName
+      ? `${item.SeriesName} — ${item.Name}`
+      : [item.Name, item.AlbumArtist || item.Artists?.[0]].filter(Boolean).join(' — ');
+
+    window.tray.setState({
+      playing,
+      active: Boolean(item),
+      title,
+      labels: {
+        play: t('player.play'),
+        pause: t('player.pause'),
+        next: t('music.next'),
+        previous: t('music.previous'),
+        show: t('tray.show'),
+        quit: t('tray.quit')
+      }
+    });
+  }
+};
 
 if ('mediaSession' in navigator) {
-  navigator.mediaSession.setActionHandler('play', () => mp.audio.play());
-  navigator.mediaSession.setActionHandler('pause', () => mp.audio.pause());
-  navigator.mediaSession.setActionHandler('previoustrack', () => music.prev());
-  navigator.mediaSession.setActionHandler('nexttrack', () => music.next());
+  const ms = navigator.mediaSession;
+  ms.setActionHandler('play', () => mediaControl.playPause());
+  ms.setActionHandler('pause', () => mediaControl.playPause());
+  ms.setActionHandler('previoustrack', () => mediaControl.prev());
+  ms.setActionHandler('nexttrack', () => mediaControl.next());
+  try {
+    ms.setActionHandler('stop', () => mediaControl.stop());
+  } catch (error) {
+    /* aeltere Chromium-Fassungen kennen 'stop' nicht */
+  }
 }
+
+window.tray?.onAction((action) => {
+  if (action === 'playpause') mediaControl.playPause();
+  else if (action === 'next') mediaControl.next();
+  else if (action === 'prev') mediaControl.prev();
+});
+
+['play', 'pause', 'emptied'].forEach((type) => {
+  vp.video.addEventListener(type, () => mediaControl.report());
+  mp.audio.addEventListener(type, () => mediaControl.report());
+});
+mediaControl.report();

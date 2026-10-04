@@ -1,0 +1,237 @@
+/* Neue Funktionen: Kontextmenue, leere Zustaende, Trakt, Profilauswahl,
+   SyncPlay, Kalender, Jugendschutz, Sofa-Modus, Ueberspringen.
+   Wird direkt nach styles.css geladen — die Reihenfolge der Regeln
+   ist dieselbe wie vorher am Ende von styles.css. */
+
+/* ========================= KONTEXTMENUE ========================= */
+.context-menu {
+  position: fixed; z-index: 1200;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-modal);
+  animation: menuIn 0.14s var(--ease);
+}
+.context-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.88rem; font-weight: 500;
+  text-align: left;
+}
+.context-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+.context-item:hover, .context-item:focus-visible {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  outline: none;
+}
+[data-theme="light"] .context-item:hover,
+[data-theme="light"] .context-item:focus-visible { background: rgba(10,20,40,0.07); }
+.context-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+
+/* ======================== LEERE ZUSTAENDE ======================== */
+.empty-state p { margin: 0; }
+.empty-state .empty-action { margin-top: 16px; }
+
+/* ============================ TRAKT ============================ */
+#trakt-status-text.ok { color: var(--accent); }
+.trakt-code {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+.trakt-code strong {
+  font-size: 1.25rem; letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  user-select: all;
+}
+.trakt-code button { margin-left: auto; }
+
+/* ========================= WER SCHAUT? ========================= */
+/* Ueber dem Formular, gleiche Breite wie die Felder. Kacheln statt
+   Liste: Gesichter erkennt man schneller als Namen. */
+.profile-picker { margin-bottom: 26px; }
+.profile-picker h3 {
+  margin: 0 0 12px;
+  font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted-2);
+}
+.profile-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+.profile-tile {
+  display: grid; justify-items: center; gap: 6px;
+  padding: 12px 6px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  text-align: center;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.profile-tile:hover, .profile-tile:focus-visible {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  color: var(--text);
+}
+.profile-tile .profile-face {
+  width: 56px; height: 56px;
+  font-size: 1.35rem;
+  transition: transform 0.15s var(--ease);
+}
+.profile-tile:hover .profile-face { transform: scale(1.06); }
+.profile-tile strong {
+  max-width: 100%;
+  font-size: 0.86rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-tile small {
+  max-width: 100%;
+  font-size: 0.72rem; color: var(--muted-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-tile.loading { opacity: 0.55; pointer-events: none; }
+
+/* ======================= GEMEINSAM SCHAUEN ======================= */
+.syncplay-btn { position: relative; }
+.syncplay-btn svg { width: 21px; height: 21px; }
+.syncplay-dot {
+  position: absolute; top: 8px; right: 8px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+  opacity: 0; transform: scale(0.4);
+  transition: opacity 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.syncplay-btn.active .syncplay-dot { opacity: 1; transform: none; }
+.syncplay-btn.active { color: var(--accent); }
+
+.syncplay-menu { width: 300px; padding: 14px; }
+.syncplay-menu h4 {
+  margin: 0 0 10px;
+  font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted-2);
+}
+.syncplay-groups { display: grid; gap: 2px; margin-bottom: 12px; }
+.syncplay-group span { display: grid; gap: 2px; min-width: 0; }
+.syncplay-group strong { color: var(--text); font-weight: 600; }
+.syncplay-group small, .syncplay-current small {
+  color: var(--muted-2); font-size: 0.78rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.syncplay-current { display: grid; gap: 3px; margin: 0 0 10px; }
+.syncplay-current strong { font-size: 0.98rem; }
+.syncplay-menu .primary-btn, .syncplay-menu .outline-btn { width: 100%; }
+.syncplay-menu .outline-btn.danger:hover { border-color: #ff8b8b; color: #ff8b8b; }
+.syncplay-loading { display: grid; place-items: center; padding: 18px; }
+.syncplay-menu .empty-state { padding: 18px 6px; }
+
+.vp-syncplay {
+  margin-left: auto;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.03em;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.vp-syncplay:not(.hidden) + .vp-method { margin-left: 8px; }
+
+/* =========================== KALENDER =========================== */
+.calendar-day { margin: 0 0 26px; max-width: 860px; }
+.calendar-date {
+  margin: 0 0 8px;
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--accent);
+}
+.calendar-entry {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background 0.14s var(--ease);
+}
+.calendar-entry:hover, .calendar-entry:focus-visible { background: var(--surface-2); }
+.calendar-entry img, .calendar-thumb {
+  width: 44px; height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.calendar-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.calendar-text strong { font-size: 0.95rem; font-weight: 600; }
+.calendar-text small {
+  color: var(--muted); font-size: 0.84rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.calendar-entry time {
+  color: var(--muted-2); font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================= JUGENDSCHUTZ ========================= */
+.parental-list { display: grid; gap: 6px; }
+.parental-user { display: flex; align-items: center; gap: 10px; }
+.parental-row select { min-width: 170px; }
+
+/* ========================== SOFA-MODUS ==========================
+   Vom Sofa aus liest man auf drei Meter: alles etwas groesser, und der
+   Fokus muss auf den ersten Blick zu finden sein. Gilt auch, sobald
+   ein Gamepad angeschlossen ist (has-gamepad) — nur der Rahmen. */
+:root.tv-mode { font-size: calc(18px * var(--ui-scale, 1)); }
+:root.tv-mode .card:focus-visible,
+:root.has-gamepad .card:focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 5px;
+  box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+:root.tv-mode .card:focus-visible .card-inner,
+:root.has-gamepad .card:focus-visible .card-inner { transform: scale(1.08); }
+:root.tv-mode :where(button, a, [tabindex="0"], select):focus-visible,
+:root.has-gamepad :where(button, a, [tabindex="0"], select):focus-visible {
+  outline-width: 3.5px;
+  outline-offset: 3px;
+}
+/* Folgen und Titel: die ganze Zeile hervorheben, nicht nur den Rand */
+.episode:focus-visible, .queue-item:focus-visible, .calendar-entry:focus-visible {
+  background: var(--surface-2);
+}
+:root.tv-mode .nav-btn { padding-inline: 14px; }
+
+/* Plugins, die nur auf dem Server wirken: genutzt, aber leiser */
+.plugin-use.used.server { color: var(--muted); font-weight: 500; }
+
+/* ===================== AUTOMATISCH UEBERSPRINGEN ===================== */
+.autoskip-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip-toggle {
+  position: relative;
+  display: inline-flex; align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+  font-size: 0.86rem; font-weight: 500;
+  cursor: pointer; user-select: none;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.chip-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.chip-toggle:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.chip-toggle:has(input:focus-visible) { outline: 2.5px solid var(--accent); outline-offset: 2px; }
