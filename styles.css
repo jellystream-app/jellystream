@@ -3715,6 +3715,26 @@ a.lang-author:hover {
 .vp-method.direct { background: rgba(61, 220, 151, 0.24); }
 .vp-method:empty { display: none; }
 
+/* Lautstärke-OSD (erscheint beim Scrollen mit dem Mausrad) */
+#vp-vol-osd {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  border-radius: 10px;
+  background: rgba(10, 14, 20, 0.88);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+#vp-vol-osd.visible { opacity: 1; }
+
 .vp-error {
   position: absolute;
   left: 50%; top: 50%;

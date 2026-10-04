@@ -1459,6 +1459,36 @@ function updateMuteIcon() {
   vp.mute.querySelector('.ic-muted').classList.toggle('hidden', !muted);
 }
 
+/* Mausrad auf dem Player-Bereich → Lautstärke ändern */
+vp.root.addEventListener('wheel', (event) => {
+  if (!vpCurrent.item) return;
+  event.preventDefault();
+  const delta = event.deltaY < 0 ? 0.05 : -0.05;
+  const newVol = Math.min(Math.max(vp.video.volume + delta, 0), 1);
+  vp.video.volume = newVol;
+  vp.video.muted = newVol === 0;
+  vp.volume.value = newVol;
+  updateMuteIcon();
+  saveVolume(newVol, vp.video.muted);
+
+  /* Kurzes OSD-Toast damit der Nutzer sieht, was sich getan hat */
+  showVolumeOsd(newVol);
+}, { passive: false });
+
+let _volOsdTimer = null;
+function showVolumeOsd(vol) {
+  let osd = document.getElementById('vp-vol-osd');
+  if (!osd) {
+    osd = document.createElement('div');
+    osd.id = 'vp-vol-osd';
+    vp.ui.appendChild(osd);
+  }
+  osd.textContent = `🔊 ${Math.round(vol * 100)} %`;
+  osd.classList.add('visible');
+  clearTimeout(_volOsdTimer);
+  _volOsdTimer = setTimeout(() => osd.classList.remove('visible'), 1200);
+}
+
 /* --- Geschwindigkeit --- */
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
