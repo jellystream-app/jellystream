@@ -626,7 +626,37 @@ function buildCard(item, options = {}) {
 
   card.append(inner, label);
 
+  /* Tastatur: Tab erreicht die Kachel, Enter oeffnet, Leertaste spielt.
+     Die Knoepfe darin bleiben aus der Tab-Reihenfolge — sonst braeuchte
+     man pro Kachel sieben Tabs. Sie sind ueber das Kontextmenue
+     (Menue-Taste oder Umschalt+F10) erreichbar. */
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', [item.Name || t('card.untitled'), defaultSubtitle(item)].filter(Boolean).join(', '));
+  body.querySelectorAll('button').forEach((btn) => { btn.tabIndex = -1; });
+
   card.addEventListener('click', () => openItem(item));
+
+  card.addEventListener('keydown', (event) => {
+    if (event.target !== card) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openItem(item);
+    } else if (event.key === ' ') {
+      event.preventDefault();
+      if (item.Type === 'Series') openItem(item);
+      else playItem(item);
+    } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      event.preventDefault();
+      const box = card.getBoundingClientRect();
+      openCardMenu(item, card, box.left + 24, box.top + 24);
+    }
+  });
+
+  card.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    openCardMenu(item, card, event.clientX, event.clientY);
+  });
 
   // Play startet direkt; ein Klick auf die Karte öffnet die Infoseite
   body.querySelector('.card-play').addEventListener('click', (event) => {
@@ -695,6 +725,136 @@ function buildCard(item, options = {}) {
   }
 
   return card;
+}
+
+/* ======================== KONTEXTMENUE ========================
+   Rechtsklick (oder Menue-Taste) auf einer Kachel: alles, was sonst
+   erst beim Ueberfahren erscheint, plus "Zur Serie"/"Zum Album".
+   Die Eintraege rufen dieselben Funktionen wie die Kachel-Knoepfe —
+   und die Knoepfe auf der Kachel werden danach gleich mitgezogen. */
+
+let cardMenu = null;
+
+function closeCardMenu({ restoreFocus = false } = {}) {
+  if (!cardMenu) return;
+  const { node, origin } = cardMenu;
+  cardMenu = null;
+  node.remove();
+  document.removeEventListener('mousedown', onCardMenuOutside, true);
+  window.removeEventListener('blur', closeCardMenu);
+  window.removeEventListener('resize', closeCardMenu);
+  el.mainPanel?.removeEventListener('scroll', closeCardMenu, true);
+  if (restoreFocus && origin?.isConnected) origin.focus();
+}
+
+function onCardMenuOutside(event) {
+  if (cardMenu && !cardMenu.node.contains(event.target)) closeCardMenu();
+}
+
+function openCardMenu(item, card, x, y) {
+  closeCardMenu();
+
+  const played = Boolean(item.UserData?.Played);
+  const favorite = Boolean(item.UserData?.IsFavorite);
+  const entries = [];
+
+  if (item.Type !== 'Series' && item.Type !== 'MusicArtist') {
+    entries.push({ label: t('card.play'), icon: ICON_PLAY, run: () => playItem(item) });
+  }
+  entries.push({ label: t('card.info'), icon: ICON_INFO, run: () => openItem(item) });
+  if (item.Type === 'Episode' && item.SeriesId) {
+    entries.push({
+      label: t('menu.goToSeries'), icon: ICON_LIST,
+      run: () => openItem({ Id: item.SeriesId, Name: item.SeriesName, Type: 'Series' })
+    });
+  }
+  if (item.Type === 'Audio' && item.AlbumId) {
+    entries.push({
+      label: t('menu.goToAlbum'), icon: ICON_LIST,
+      run: () => openItem({ Id: item.AlbumId, Name: item.Album, Type: 'MusicAlbum' })
+    });
+  }
+  entries.push('-');
+  entries.push({
+    label: favorite ? t('card.removeFavorite') : t('card.addFavorite'),
+    icon: favorite ? ICON_CHECK : ICON_PLUS,
+    run: () => {
+      const btn = card.querySelector('.card-icon-btn.fav');
+      if (btn) toggleFavorite(item, btn);
+    }
+  });
+  if (item.Type !== 'MusicArtist') {
+    entries.push({
+      label: played ? t('card.markUnwatched') : t('card.markWatched'),
+      icon: ICON_EYE,
+      run: () => card.querySelector('.card-icon-btn.seen')?.click()
+    });
+  }
+  entries.push({ label: t('card.playlist'), icon: ICON_LIST, run: () => openPlaylistModal(item) });
+  if (isDownloadable(item)) {
+    entries.push({ label: t('card.download'), icon: ICON_DOWNLOAD, run: () => openDownloadModal(item) });
+  }
+  if (card.querySelector('.card-icon-btn.dismiss')) {
+    entries.push({ label: t('card.dismiss'), icon: ICON_X, run: () => card.querySelector('.card-icon-btn.dismiss').click() });
+  }
+
+  const node = document.createElement('div');
+  node.className = 'context-menu';
+  node.setAttribute('role', 'menu');
+  node.setAttribute('aria-label', item.Name || t('card.untitled'));
+
+  entries.forEach((entry) => {
+    if (entry === '-') {
+      node.insertAdjacentHTML('beforeend', '<div class="context-sep" role="separator"></div>');
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'context-item';
+    btn.setAttribute('role', 'menuitem');
+    btn.tabIndex = -1;
+    btn.innerHTML = `${entry.icon}<span></span>`;
+    btn.querySelector('span').textContent = entry.label;
+    btn.addEventListener('click', () => {
+      closeCardMenu();
+      entry.run();
+    });
+    node.appendChild(btn);
+  });
+
+  // Pfeiltasten wandern, Escape schliesst und gibt den Fokus zurueck
+  node.addEventListener('keydown', (event) => {
+    const items = [...node.querySelectorAll('.context-item')];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      items[(index + step + items.length) % items.length].focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      items[event.key === 'Home' ? 0 : items.length - 1].focus();
+    } else if (event.key === 'Escape' || event.key === 'Tab') {
+      event.preventDefault();
+      closeCardMenu({ restoreFocus: true });
+    }
+  });
+
+  document.body.appendChild(node);
+
+  // Im Fenster halten
+  const rect = node.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  node.style.left = `${Math.max(8, left)}px`;
+  node.style.top = `${Math.max(8, top)}px`;
+
+  cardMenu = { node, origin: card };
+  node.querySelector('.context-item')?.focus();
+
+  document.addEventListener('mousedown', onCardMenuOutside, true);
+  window.addEventListener('blur', closeCardMenu);
+  window.addEventListener('resize', closeCardMenu);
+  el.mainPanel?.addEventListener('scroll', closeCardMenu, true);
 }
 
 // Ecken-Badge wie bei Prime ("NEU HINZUGEFÜGT", "NEUE FOLGE", ...)
@@ -919,9 +1079,37 @@ function skeletonEpisodes(count = 4) {
   ).join('');
 }
 
-function showEmpty(message) {
-  el.viewRoot.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+/** Leerer Zustand mit optionalem Ausweg.
+ *
+ *  Nur "Keine Favoriten" zu lesen ist eine Sackgasse — wer nicht
+ *  weiss, wie man welche anlegt, bleibt dort stehen. Die Aktion zeigt
+ *  den naechsten Schritt. Gibt das Element zurueck, damit Aufrufer es
+ *  irgendwo einhaengen koennen. */
+function emptyState(message, action = null) {
+  const node = document.createElement('div');
+  node.className = 'empty-state';
+  const text = document.createElement('p');
+  text.textContent = message;
+  node.appendChild(text);
+
+  if (action?.label && typeof action.run === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'outline-btn small empty-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', action.run);
+    node.appendChild(btn);
+  }
+  return node;
 }
+
+function showEmpty(message, action = null) {
+  el.viewRoot.innerHTML = '';
+  el.viewRoot.appendChild(emptyState(message, action));
+}
+
+/** Ausweg, den fast jede leere Ansicht anbieten kann */
+const goHomeAction = () => ({ label: t('empty.discover'), run: () => navigate(showHome) });
 
 /* ============================ VIEWS ============================ */
 
@@ -1302,12 +1490,28 @@ async function loadCatalogPage() {
     const counter = $('catalog-count');
     if (counter) {
       counter.textContent = catalog.done
-        ? `${catalog.items.length} Titel`
-        : `${catalog.items.length} von ${catalog.total}`;
+        ? t('catalog.count', { count: catalog.items.length })
+        : t('catalog.countOf', { count: catalog.items.length, total: catalog.total });
     }
 
     if (!catalog.items.length && grid) {
-      grid.innerHTML = `<div class="empty-state">${escapeHtml(t('catalog.noneForFilter'))}</div>`;
+      grid.innerHTML = '';
+      const base = catalog.opened || {};
+      const narrowed = catalog.yearFrom || catalog.yearTo
+        || (catalog.genre || '') !== (base.genre || '')
+        || (catalog.filter || '') !== (base.filter || '');
+
+      if (narrowed) {
+        grid.appendChild(emptyState(t('catalog.noneForFilter'), {
+          label: t('catalog.resetFilters'),
+          run: () => openCatalog(base)
+        }));
+      } else if (base.filter === 'IsFavorite') {
+        // Meine Liste ist leer: sagen, wie etwas hineinkommt
+        grid.appendChild(emptyState(t('empty.favorites'), goHomeAction()));
+      } else {
+        grid.appendChild(emptyState(t('catalog.noneForFilter'), goHomeAction()));
+      }
     }
   } catch (error) {
     if (!isCurrent('catalog', token)) return;
@@ -1370,9 +1574,9 @@ function renderCatalogShell(genres) {
       </div>
 
       <div class="year-filter">
-        <input type="number" id="year-from" class="year-input" placeholder="Von" min="1888" max="2099" value="${catalog.yearFrom || ''}" />
+        <input type="number" id="year-from" class="year-input" placeholder="${escapeHtml(t('catalog.yearFrom'))}" aria-label="${escapeHtml(t('catalog.yearFrom'))}" min="1888" max="2099" value="${catalog.yearFrom || ''}" />
         <span class="year-sep">–</span>
-        <input type="number" id="year-to" class="year-input" placeholder="Bis" min="1888" max="2099" value="${catalog.yearTo || ''}" />
+        <input type="number" id="year-to" class="year-input" placeholder="${escapeHtml(t('catalog.yearTo'))}" aria-label="${escapeHtml(t('catalog.yearTo'))}" min="1888" max="2099" value="${catalog.yearTo || ''}" />
       </div>
     </div>
 
@@ -1515,7 +1719,9 @@ async function openCatalog({ title, types = null, parentId = null, shape = 'wide
   Object.assign(catalog, {
     title, types, parentId, shape,
     sort: 'SortName-Ascending', filter, genre, yearFrom: '', yearTo: '',
-    items: [], total: 0, loading: false, done: false
+    items: [], total: 0, loading: false, done: false,
+    // Wie die Ansicht geoeffnet wurde — "Filter zuruecksetzen" fuehrt dorthin
+    opened: { title, types, parentId, shape, filter, genre }
   });
 
   if (catalog.observer) catalog.observer.disconnect();
@@ -1872,7 +2078,7 @@ async function showDetail(base) {
                   data-dl-item="${escapeHtml(item.Id)}">${ICON_DOWNLOAD} ${escapeHtml(t('detail.download'))}</button>` : ''}
               ${(localTrailers.length || remoteTrailers.length) ? `<button class="outline-btn" id="detail-trailer" type="button">
                 <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="8,5 19,12 8,19"/><rect x="3" y="5" width="3" height="14" rx="1"/></svg>
-                Trailer</button>` : ''}
+                ${escapeHtml(t('detail.trailer'))}</button>` : ''}
             </div>
 
             ${item.Genres?.length ? `<div class="detail-tags">${item.Genres.map((g) =>
@@ -1969,13 +2175,9 @@ async function showDetail(base) {
         playVideo(localTrailers[0], localTrailers);
       } else if (remoteTrailers.length) {
         /* Remote (meist YouTube): im externen Browser öffnen */
-        const url = remoteTrailers[0].Url;
-        if (window.windowControls) {
-          /* Intern navigieren lassen — main.js leitet http/https weiter */
-          window.location.href = url;
-        } else {
-          window.open(url, '_blank');
-        }
+        /* main.js oeffnet http(s) im Standardbrowser, im Web-Build
+           wird es ein neuer Tab. Die Seite selbst bleibt stehen. */
+        window.open(remoteTrailers[0].Url, '_blank', 'noopener');
       }
     });
 
@@ -2864,8 +3066,8 @@ function renderRecentSearches() {
   }
   recentSearchesEl.innerHTML = `
     <div class="rs-header">
-      <span>Letzte Suchen</span>
-      <button class="rs-clear" type="button">Alle löschen</button>
+      <span>${escapeHtml(t('search.recent'))}</span>
+      <button class="rs-clear" type="button">${escapeHtml(t('search.clearRecent'))}</button>
     </div>
     <ul class="rs-list">
       ${list.map((s) => `<li><button class="rs-item" type="button">${escapeHtml(s)}</button></li>`).join('')}
@@ -2965,7 +3167,14 @@ async function runSearch(term) {
     el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('search.heading', { term }))}</h2>`;
 
     if (!items.length) {
-      el.viewRoot.insertAdjacentHTML('beforeend', '<div class="empty-state">Nichts gefunden.</div>');
+      el.viewRoot.appendChild(emptyState(t('search.noResults', { term }), {
+        label: t('search.clear'),
+        run: () => {
+          el.searchInput.value = '';
+          el.searchInput.focus();
+          renderRecentSearches();
+        }
+      }));
       return;
     }
 
@@ -3277,97 +3486,88 @@ async function showStats() {
   el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('nav.stats'))}</h2><div class="stats-loading"><div class="spinner"></div></div>`;
 
   try {
-    /* Jellyfin liefert UserData in Items-Queries, aber keinen
-       aggregierten Überblick direkt. Wir holen uns alle gesehenen
-       Inhalte und errechnen die Zahlen client-seitig. */
+    /* Jellyfin hat keine fertige Auswertung fuer Nutzer. Also alle
+       gesehenen Titel holen und hier zaehlen. LastPlayedDate steckt in
+       UserData und erlaubt den Blick auf die letzten Tage. */
+    const fields = 'RunTimeTicks,Genres,ProductionYear,SeriesName,SeriesId';
     const [moviesData, episodesData] = await Promise.all([
-      api(itemsUrl({
-        IncludeItemTypes: 'Movie',
-        Recursive: 'true',
-        Filters: 'IsPlayed',
-        Fields: 'RunTimeTicks,Genres,ProductionYear',
-        Limit: '10000'
-      })),
-      api(itemsUrl({
-        IncludeItemTypes: 'Episode',
-        Recursive: 'true',
-        Filters: 'IsPlayed',
-        Fields: 'RunTimeTicks,Genres,SeriesName,ProductionYear',
-        Limit: '10000'
-      }))
+      api(itemsUrl({ IncludeItemTypes: 'Movie', Recursive: 'true', Filters: 'IsPlayed', Fields: fields, Limit: '10000' })),
+      api(itemsUrl({ IncludeItemTypes: 'Episode', Recursive: 'true', Filters: 'IsPlayed', Fields: fields, Limit: '10000' }))
     ]);
     if (!isCurrent('stats', token)) return;
 
-    const movies   = moviesData.Items || [];
-    const episodes = episodesData.Items || [];
+    const movies = moviesData?.Items || [];
+    const episodes = episodesData?.Items || [];
+    const all = [...movies, ...episodes];
 
-    /* Laufzeit in Stunden */
-    const toHours = (items) => {
-      const ticks = items.reduce((sum, it) => sum + (it.RunTimeTicks || 0), 0);
-      return Math.round(ticks / 36000000000); // Ticks → Stunden
+    const hoursOf = (items) =>
+      Math.round(items.reduce((sum, it) => sum + ticksToSeconds(it.RunTimeTicks), 0) / 3600);
+
+    const playedWithin = (days) => {
+      const since = Date.now() - days * 86400000;
+      return all.filter((it) => {
+        const when = Date.parse(it.UserData?.LastPlayedDate || '');
+        return when && when >= since;
+      });
+    };
+    const week = playedWithin(7);
+    const month = playedWithin(30);
+
+    const countBy = (items, keyFn) => {
+      const counts = new Map();
+      items.forEach((it) => {
+        [].concat(keyFn(it) || []).forEach((key) => counts.set(key, (counts.get(key) || 0) + 1));
+      });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]);
     };
 
-    const movieHours   = toHours(movies);
-    const episodeHours = toHours(episodes);
-    const totalHours   = movieHours + episodeHours;
+    // Folgen tragen selten eigene Genres — dann zaehlen nur die Filme
+    const topGenres = countBy(all, (it) => it.Genres).slice(0, 8);
+    const topSeries = countBy(episodes, (it) => it.SeriesName).slice(0, 6);
+    const decades = countBy(movies, (it) => (it.ProductionYear ? `${Math.floor(it.ProductionYear / 10) * 10}s` : null))
+      .slice(0, 6);
 
-    /* Top-Genres */
-    const genreCount = {};
-    [...movies, ...episodes].forEach((it) => {
-      (it.Genres || []).forEach((g) => { genreCount[g] = (genreCount[g] || 0) + 1; });
-    });
-    const topGenres = Object.entries(genreCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
+    const bars = (rows) => {
+      const max = rows[0]?.[1] || 1;
+      return `<div class="stat-bars">${rows.map(([label, count]) => `
+        <div class="stat-bar-row">
+          <span class="stat-bar-label">${escapeHtml(label)}</span>
+          <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${Math.round((count / max) * 100)}%"></div></div>
+          <span class="stat-bar-val">${count}</span>
+        </div>`).join('')}</div>`;
+    };
 
-    /* Filme pro Jahr */
-    const yearCount = {};
-    movies.forEach((it) => {
-      if (it.ProductionYear) yearCount[it.ProductionYear] = (yearCount[it.ProductionYear] || 0) + 1;
-    });
-    const topYears = Object.entries(yearCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const card = (num, label, sub = '') => `
+      <div class="stat-card">
+        <div class="stat-num">${escapeHtml(String(num))}</div>
+        <div class="stat-label">${escapeHtml(label)}</div>
+        ${sub ? `<div class="stat-sub">${escapeHtml(sub)}</div>` : ''}
+      </div>`;
 
-    const genreBar = (label, count, max) =>
-      `<div class="stat-bar-row">
-         <span class="stat-bar-label">${escapeHtml(label)}</span>
-         <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${Math.round((count / max) * 100)}%"></div></div>
-         <span class="stat-bar-val">${count}</span>
-       </div>`;
+    const section = (title, rows) => (rows.length
+      ? `<h3 class="stats-section-title">${escapeHtml(title)}</h3>${bars(rows)}`
+      : '');
 
-    const maxGenre = topGenres[0]?.[1] || 1;
+    if (!all.length) {
+      el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('nav.stats'))}</h2>`;
+      showEmpty(t('stats.empty'), { label: t('empty.discover'), run: () => navigate(showHome) });
+      return;
+    }
 
     el.viewRoot.innerHTML = `
       <h2 class="section-title">${escapeHtml(t('nav.stats'))}</h2>
 
       <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-num">${totalHours}</div>
-          <div class="stat-label">Stunden gesehen gesamt</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">${movies.length}</div>
-          <div class="stat-label">Filme gesehen</div>
-          <div class="stat-sub">${movieHours} h</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">${episodes.length}</div>
-          <div class="stat-label">Episoden gesehen</div>
-          <div class="stat-sub">${episodeHours} h</div>
-        </div>
+        ${card(hoursOf(all), t('stats.hoursTotal'))}
+        ${card(movies.length, t('stats.movies'), t('stats.hours', { n: hoursOf(movies) }))}
+        ${card(episodes.length, t('stats.episodes'), t('stats.hours', { n: hoursOf(episodes) }))}
+        ${card(hoursOf(week), t('stats.hoursWeek'), t('stats.titles', { n: week.length }))}
+        ${card(hoursOf(month), t('stats.hoursMonth'), t('stats.titles', { n: month.length }))}
       </div>
 
-      ${topGenres.length ? `
-      <h3 class="stats-section-title">Top Genres</h3>
-      <div class="stat-bars">
-        ${topGenres.map(([genre, count]) => genreBar(genre, count, maxGenre)).join('')}
-      </div>` : ''}
-
-      ${topYears.length ? `
-      <h3 class="stats-section-title">Meistgesehene Jahrzehnte (Filme)</h3>
-      <div class="stat-bars">
-        ${topYears.map(([year, count]) => genreBar(year, count, topYears[0]?.[1] || 1)).join('')}
-      </div>` : ''}`;
-
+      ${section(t('stats.topSeries'), topSeries)}
+      ${section(t('stats.topGenres'), topGenres)}
+      ${section(t('stats.decades'), decades)}`;
   } catch (error) {
     if (!isCurrent('stats', token)) return;
     console.error(error);
