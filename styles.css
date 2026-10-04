@@ -2609,6 +2609,30 @@ video::cue {
 .seg-btn:hover { color: var(--text); }
 .seg-btn.active { background: var(--accent); color: var(--on-accent); }
 
+/* Jahreszahl-Filter im Katalog */
+.year-filter {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: auto;           /* schiebt sich an den rechten Rand */
+}
+.year-input {
+  width: 78px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  transition: border-color 0.15s;
+  /* Spinner ausblenden */
+  -moz-appearance: textfield;
+}
+.year-input::-webkit-outer-spin-button,
+.year-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.year-input:focus { outline: none; border-color: var(--accent); }
+.year-sep { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+
 .load-more { display: grid; place-items: center; padding: 34px 0 10px; min-height: 60px; }
 .spinner.small { width: 22px; height: 22px; border-width: 2.5px; }
 

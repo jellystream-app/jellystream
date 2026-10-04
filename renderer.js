@@ -1238,7 +1238,7 @@ const catalog = {
   /* types === null heißt „kein Typ-Filter" — openCatalog() überschreibt
      das ohnehin bei jedem Aufruf. */
   title: '', types: null, parentId: null, shape: 'wide',
-  sort: 'SortName-Ascending', filter: '', genre: '',
+  sort: 'SortName-Ascending', filter: '', genre: '', yearFrom: '', yearTo: '',
   items: [], total: 0, loading: false, done: false, observer: null
 };
 
@@ -1263,6 +1263,8 @@ function catalogQuery(startIndex) {
   if (catalog.parentId) params.ParentId = catalog.parentId;
   if (catalog.filter) params.Filters = catalog.filter;
   if (catalog.genre) params.Genres = catalog.genre;
+  if (catalog.yearFrom) params.MinPremiereDate = `${catalog.yearFrom}-01-01`;
+  if (catalog.yearTo)   params.MaxPremiereDate = `${catalog.yearTo}-12-31`;
   return itemsUrl(params);
 }
 
@@ -1366,6 +1368,12 @@ function renderCatalogShell(genres) {
         <button type="button" class="seg-btn" data-filter="IsPlayed">${escapeHtml(t('filter.watched'))}</button>
         <button type="button" class="seg-btn" data-filter="IsFavorite">${escapeHtml(t('filter.favorites'))}</button>
       </div>
+
+      <div class="year-filter">
+        <input type="number" id="year-from" class="year-input" placeholder="Von" min="1888" max="2099" value="${catalog.yearFrom || ''}" />
+        <span class="year-sep">–</span>
+        <input type="number" id="year-to" class="year-input" placeholder="Bis" min="1888" max="2099" value="${catalog.yearTo || ''}" />
+      </div>
     </div>
 
     <div class="grid ${catalogGridClass()}" id="catalog-grid"></div>
@@ -1437,6 +1445,22 @@ function wireCatalogControls() {
     });
   });
 
+  /* Jahr-Filter: mit kleinem Debounce damit man in Ruhe tippen kann */
+  let yearTimer = null;
+  const wireYear = (id, prop) => {
+    const input = $(id);
+    if (!input) return;
+    input.addEventListener('input', () => {
+      clearTimeout(yearTimer);
+      yearTimer = setTimeout(() => {
+        catalog[prop] = input.value.trim();
+        restartCatalog();
+      }, 500);
+    });
+  };
+  wireYear('year-from', 'yearFrom');
+  wireYear('year-to', 'yearTo');
+
   // F1: genau ein Listener, der sich selbst abmeldet, sobald die Ansicht weg ist
   if (catalogOutsideClick) document.removeEventListener('click', catalogOutsideClick);
   catalogOutsideClick = (event) => {
@@ -1490,7 +1514,7 @@ async function openCatalog({ title, types = null, parentId = null, shape = 'wide
 
   Object.assign(catalog, {
     title, types, parentId, shape,
-    sort: 'SortName-Ascending', filter, genre,
+    sort: 'SortName-Ascending', filter, genre, yearFrom: '', yearTo: '',
     items: [], total: 0, loading: false, done: false
   });
 
