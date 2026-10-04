@@ -1159,30 +1159,74 @@ vp.video.addEventListener('progress', () => {
    ============================================================ */
 
 /* Wer den Knopf ignoriert, soll ihn nicht die ganze Zeit sehen; wer
-   ihn wegklickt, gar nicht mehr. */
-let skipDismissed = false;
+   ihn wegklickt, gar nicht mehr — je Abschnitt. Ein weggeklicktes
+   Intro heisst nicht, dass man auch die Werbung sehen will. */
+const skipDismissed = new Set();
+let skipCurrent = null;
+
+/* Text des Knopfs je Abschnitt (Intro Skipper, Chapter Segments & Co.) */
+const SKIP_LABELS = {
+  Intro: 'player.skipIntro',
+  Recap: 'player.skipRecap',
+  Preview: 'player.skipPreview',
+  Commercial: 'player.skipCommercial'
+};
 
 function hideSkip() {
   vp.skip?.classList.add('hidden');
+  skipCurrent = null;
 }
 
 function resetSkip() {
-  skipDismissed = false;
+  skipDismissed.clear();
   hideSkip();
+}
+
+const skipKey = (segment) => `${segment.type}@${segment.start}`;
+
+/** Alle ueberspringbaren Abschnitte — aeltere Aufrufer setzen nur intro */
+function skipSegments() {
+  const seg = vpCurrent.segments || {};
+  if (Array.isArray(seg.skippable) && seg.skippable.length) return seg.skippable;
+  return seg.intro ? [{ ...seg.intro, type: 'Intro' }] : [];
 }
 
 /** Prüft bei jedem Zeitfortschritt, ob der Knopf sichtbar sein soll. */
 function updateSkip(position) {
   if (!vp.skip) return;
 
-  const intro = vpCurrent.segments?.intro;
-  if (!intro || skipDismissed) return hideSkip();
-
-  /* Etwas Vorlauf: Steht die Wiedergabe eine Sekunde vor dem Intro,
+  /* Etwas Vorlauf: Steht die Wiedergabe eine Sekunde vor dem Abschnitt,
      ist der Knopf schon da — sonst erscheint er im Moment, in dem man
      ihn braucht, und wird uebersehen. */
-  const visible = position >= Math.max(0, intro.start - 1) && position < intro.end;
-  vp.skip.classList.toggle('hidden', !visible);
+  const segment = skipSegments().find((s) =>
+    position >= Math.max(0, s.start - 1) && position < s.end
+    && !skipDismissed.has(skipKey(s)));
+  if (!segment) return hideSkip();
+
+  /* Automatisch ueberspringen, wenn so eingestellt — aber erst, wenn
+     der Abschnitt wirklich begonnen hat, nicht schon im Vorlauf. */
+  const inGroup = typeof syncplay !== 'undefined' && syncplay.active;
+  if (prefs.autoSkip?.[segment.type] && position >= segment.start && !inGroup) {
+    skipSegment(segment);
+    toast(t(`player.skipped${segment.type}`));
+    return;
+  }
+
+  if (skipCurrent !== segment) {
+    skipCurrent = segment;
+    const label = vp.skip.querySelector('span');
+    if (label) label.textContent = t(SKIP_LABELS[segment.type] || 'player.skipIntro');
+  }
+  vp.skip.classList.remove('hidden');
+}
+
+function skipSegment(segment) {
+  /* Ein Sprung an das genaue Ende landet gelegentlich noch im letzten
+     Bild des Abschnitts — der Knopf blitzte dann erneut auf. Ein Viertel
+     Sekunde darueber ist unsichtbar und verhindert das. */
+  seekTo(segment.end + 0.25);
+  skipDismissed.add(skipKey(segment));
+  hideSkip();
 }
 
 /** Beginnt hier der Abspann?
@@ -1201,16 +1245,10 @@ function outroReached(position) {
 }
 
 vp.skip?.addEventListener('click', () => {
-  const intro = vpCurrent.segments?.intro;
-  if (!intro) return hideSkip();
-
-  /* Ein Sprung an das genaue Ende landet gelegentlich noch im letzten
-     Bild des Intros — der Knopf blitzte dann erneut auf. Ein Viertel
-     Sekunde darueber ist unsichtbar und verhindert das. */
-  seekTo(intro.end + 0.25);
-
-  skipDismissed = true;
-  hideSkip();
+  const segment = skipCurrent
+    || skipSegments().find((s) => mediaPosition() >= s.start - 1 && mediaPosition() < s.end);
+  if (!segment) return hideSkip();
+  skipSegment(segment);
 });
 
 /* U8: Nächste Folge mit Countdown statt hartem Sprung */

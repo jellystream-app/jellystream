@@ -176,6 +176,47 @@ app.whenReady().then(async () => {
       updateSkip(45);
       check('Ohne Marken kein Knopf', !shown());
 
+      /* ---------- Weitere Abschnitte: Rueckblick, Werbung ---------- */
+      api = async () => ({ Items: [
+        { Type: 'Commercial', StartTicks: 600 * TICKS, EndTicks: 660 * TICKS },
+        { Type: 'Recap', StartTicks: 0, EndTicks: 20 * TICKS },
+        { Type: 'Intro', StartTicks: 30 * TICKS, EndTicks: 60 * TICKS },
+        { Type: 'Outro', StartTicks: 1200 * TICKS, EndTicks: 1260 * TICKS }
+      ] });
+      const all = await fetchMediaSegments('item-2');
+      check('Ueberspringbares nach Zeit sortiert, ohne Abspann',
+            all.skippable.map((s) => s.type).join() === 'Recap,Intro,Commercial',
+            all.skippable.map((s) => s.type).join());
+
+      vpCurrent.segments = all;
+      resetSkip();
+      const label = () => skip.querySelector('span').textContent;
+      updateSkip(5);
+      check('Rueckblick hat eigenen Text', shown() && label() === t('player.skipRecap'), label());
+      updateSkip(40);
+      check('Danach der Intro-Text', shown() && label() === t('player.skipIntro'), label());
+      updateSkip(630);
+      check('Werbung hat eigenen Text', shown() && label() === t('player.skipCommercial'), label());
+
+      skip.click();
+      updateSkip(10);
+      check('Wegklicken gilt nur fuer diesen Abschnitt', shown() && label() === t('player.skipRecap'), label());
+
+      /* Automatisch: springt selbst, sobald der Abschnitt beginnt */
+      vp.video.currentTime = 0;
+      prefs.autoSkip = { Intro: true };
+      resetSkip();
+      updateSkip(29.5);
+      check('Automatisch: im Vorlauf noch Knopf statt Sprung', shown() && vp.video.currentTime < 30);
+      updateSkip(31);
+      check('Automatisch: am Beginn gesprungen',
+            vp.video.currentTime >= 60 && vp.video.currentTime < 61, String(vp.video.currentTime));
+      updateSkip(5);
+      check('Automatisch gilt nur fuer gewaehlte Abschnitte', shown() && label() === t('player.skipRecap'));
+      prefs.autoSkip = {};
+      vpCurrent.segments = { intro: null, outro: null };
+      resetSkip();
+
       /* ================================================================
          5. DER ABSPANN
          ================================================================ */

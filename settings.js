@@ -30,6 +30,9 @@ const prefs = {
   theme: 'midnight',
   accent: '#1ecad3',
   autoplayNext: true,
+  /* Abschnitte, die ohne Nachfrage uebersprungen werden: { Intro: true, … }.
+     Leer = immer nur den Knopf anbieten. */
+  autoSkip: {},
   preferSubtitles: false,
   resumePlayback: true,
   subSize: 1,
@@ -893,6 +896,9 @@ async function openSettings() {
 
   /* --- Wiedergabe --- */
   $('set-nextup').checked = prefs.showNextup;
+  document.querySelectorAll('[data-autoskip]').forEach((box) => {
+    box.checked = Boolean(prefs.autoSkip?.[box.dataset.autoskip]);
+  });
   $('start-volume').value = prefs.startVolume;
   $('start-volume-val').textContent = `${Math.round(prefs.startVolume * 100)} %`;
   $('seek-step').value = String(prefs.seekStep);
@@ -999,6 +1005,13 @@ $('sub-color').addEventListener('input', (e) => {
 /* ------------------- Wiedergabe (erweitert) ------------------- */
 
 $('set-nextup').addEventListener('change', (e) => { prefs.showNextup = e.target.checked; savePrefs(); });
+
+document.querySelectorAll('[data-autoskip]').forEach((box) => {
+  box.addEventListener('change', () => {
+    prefs.autoSkip = { ...(prefs.autoSkip || {}), [box.dataset.autoskip]: box.checked };
+    savePrefs();
+  });
+});
 
 $('start-volume').addEventListener('input', (e) => {
   prefs.startVolume = Number(e.target.value);
@@ -1933,10 +1946,52 @@ function selectControl({ options, value, onChange }) {
 /* Was Jellystream von einem Plugin tatsaechlich nutzt. Der
    Schluessel ist der Name, wie Jellyfin ihn meldet, kleingeschrieben
    und ohne Leerzeichen — Schreibweisen wechseln zwischen Fassungen. */
+/* Ehrlich unterteilt:
+   - 'plugins.usedX'   Jellystream liest die Daten aktiv aus und zeigt
+                       eine eigene Funktion dafuer.
+   - 'plugins.usedServer'  Das Plugin arbeitet auf dem Server (Metadaten,
+                       Bilder, Untertitel, Sammlungen). Jellystream zeigt
+                       das Ergebnis, weil es die Daten des Servers zeigt —
+                       ohne eigenes Zutun.
+   Alles andere bringt eine eigene Oberflaeche in der Jellyfin-Weboberflaeche
+   mit, die sich in einer fremden App nicht nachbauen laesst. */
 const PLUGIN_SUPPORT = {
-  introskipper: 'plugins.usedIntro',
-  intros: 'plugins.usedIntro',
-  mediasegmentsapi: 'plugins.usedIntro'
+  introskipper: 'plugins.usedSegments',
+  intros: 'plugins.usedSegments',
+  mediasegmentsapi: 'plugins.usedSegments',
+  chaptersegments: 'plugins.usedSegments',
+  chaptersegmentsprovider: 'plugins.usedSegments',
+  edlsegments: 'plugins.usedSegments',
+  lrclib: 'plugins.usedLyrics',
+  lyrics: 'plugins.usedLyrics',
+  // Scrobbelt selbst auf dem Server; Jellystream hat zusaetzlich eine eigene Anbindung
+  trakt: 'plugins.usedServer',
+  playbackreporting: 'plugins.usedServer',
+  tmdb: 'plugins.usedServer',
+  tmdbbox: 'plugins.usedServer',
+  tmdbboxsets: 'plugins.usedServer',
+  themoviedb: 'plugins.usedServer',
+  tvdb: 'plugins.usedServer',
+  thetvdb: 'plugins.usedServer',
+  omdb: 'plugins.usedServer',
+  fanart: 'plugins.usedServer',
+  opensubtitles: 'plugins.usedServer',
+  opensubtitlesorg: 'plugins.usedServer',
+  musicbrainz: 'plugins.usedServer',
+  audiodb: 'plugins.usedServer',
+  theaudiodb: 'plugins.usedServer',
+  anidb: 'plugins.usedServer',
+  anilist: 'plugins.usedServer',
+  studioimages: 'plugins.usedServer',
+  autocollections: 'plugins.usedServer',
+  smartplaylist: 'plugins.usedServer',
+  localintros: 'plugins.usedServer',
+  cinemamode: 'plugins.usedServer',
+  livetv: 'plugins.usedServer',
+  iptv: 'plugins.usedServer',
+  m3u: 'plugins.usedServer',
+  hdhomerun: 'plugins.usedServer',
+  tvheadend: 'plugins.usedServer'
 };
 
 function pluginSupportKey(name) {
@@ -2094,7 +2149,7 @@ async function renderPluginList() {
             ? ` · ${escapeHtml(String(plugin.Status))}` : ''
         }</small>
       </span>
-      <span class="plugin-use ${supportKey ? 'used' : ''}">${escapeHtml(
+      <span class="plugin-use ${supportKey ? 'used' : ''} ${supportKey === 'plugins.usedServer' ? 'server' : ''}">${escapeHtml(
         supportKey ? t(supportKey) : t('plugins.notUsed')
       )}</span>`;
 

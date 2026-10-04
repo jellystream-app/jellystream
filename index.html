@@ -685,6 +685,18 @@
                   <input type="checkbox" id="set-nextup" class="switch" checked />
                 </label>
 
+                <!-- Abschnitte, die Plugins wie Intro Skipper markieren -->
+                <div class="setting-stack" id="autoskip-row">
+                  <strong data-i18n="settings.autoSkip">Automatisch überspringen</strong>
+                  <small class="settings-hint" data-i18n="settings.autoSkipHint">Braucht ein Plugin auf dem Server, das die Abschnitte erkennt (z. B. Intro Skipper). Sonst erscheint gar kein Knopf.</small>
+                  <div class="autoskip-chips" role="group" data-i18n-aria="settings.autoSkip" aria-label="Automatisch überspringen">
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Intro" /><span data-i18n="segment.Intro">Intro</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Recap" /><span data-i18n="segment.Recap">Rückblick</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Preview" /><span data-i18n="segment.Preview">Vorschau</span></label>
+                    <label class="chip-toggle"><input type="checkbox" data-autoskip="Commercial" /><span data-i18n="segment.Commercial">Werbung</span></label>
+                  </div>
+                </div>
+
                 <div class="slider-row">
                   <label for="start-volume" data-i18n="settings.startVolume">Startlautstärke</label>
                   <input type="range" id="start-volume" min="0" max="1" step="0.05" value="1" />

@@ -223,7 +223,7 @@ app.whenReady().then(async () => {
 
       api = () => Promise.resolve([
         { Name: 'Intro Skipper', Version: '1.10.0', Status: 'Active' },
-        { Name: 'Trakt', Version: '4.2.1', Status: 'Active' }
+        { Name: 'Reports', Version: '17.0.0', Status: 'Active' }
       ]);
       await renderPluginList();
       await wait(150);
