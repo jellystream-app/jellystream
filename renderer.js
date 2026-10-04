@@ -2791,26 +2791,85 @@ function playItem(item) {
 /* ============================ SEARCH ============================ */
 
 let searchTimer = null;
+const recentSearchesEl = $('recent-searches-dropdown');
+const RECENT_SEARCHES_KEY = 'jf-recent-searches';
+const RECENT_SEARCHES_MAX = 8;
+
+function loadRecentSearches() {
+  try { return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveRecentSearch(term) {
+  if (!term) return;
+  const list = loadRecentSearches().filter((s) => s !== term);
+  list.unshift(term);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list.slice(0, RECENT_SEARCHES_MAX)));
+}
+
+function renderRecentSearches() {
+  const list = loadRecentSearches();
+  if (!list.length) {
+    recentSearchesEl.classList.add('hidden');
+    return;
+  }
+  recentSearchesEl.innerHTML = `
+    <div class="rs-header">
+      <span>Letzte Suchen</span>
+      <button class="rs-clear" type="button">Alle löschen</button>
+    </div>
+    <ul class="rs-list">
+      ${list.map((s) => `<li><button class="rs-item" type="button">${escapeHtml(s)}</button></li>`).join('')}
+    </ul>`;
+
+  recentSearchesEl.querySelector('.rs-clear').addEventListener('click', (e) => {
+    e.stopPropagation();
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    recentSearchesEl.classList.add('hidden');
+  });
+
+  recentSearchesEl.querySelectorAll('.rs-item').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // blur-Event nicht auslösen
+      const term = btn.textContent;
+      el.searchInput.value = term;
+      recentSearchesEl.classList.add('hidden');
+      runSearch(term);
+    });
+  });
+
+  recentSearchesEl.classList.remove('hidden');
+}
 
 el.searchToggle.addEventListener('click', () => {
   const wasCollapsed = el.searchBox.classList.contains('collapsed');
   el.searchBox.classList.remove('collapsed');
   if (wasCollapsed) {
     el.searchInput.focus();
+    if (!el.searchInput.value.trim()) renderRecentSearches();
   } else if (!el.searchInput.value.trim()) {
+    recentSearchesEl.classList.add('hidden');
     el.searchBox.classList.add('collapsed');
   }
 });
 
 // Leeres Feld beim Verlassen wieder einklappen
 el.searchInput.addEventListener('blur', () => {
-  if (!el.searchInput.value.trim()) el.searchBox.classList.add('collapsed');
+  setTimeout(() => {           // kurze Verzögerung, damit mousedown-Klicks greifen
+    recentSearchesEl.classList.add('hidden');
+    if (!el.searchInput.value.trim()) el.searchBox.classList.add('collapsed');
+  }, 150);
+});
+
+el.searchInput.addEventListener('focus', () => {
+  if (!el.searchInput.value.trim()) renderRecentSearches();
 });
 
 el.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     el.searchInput.value = '';
     el.searchInput.blur();
+    recentSearchesEl.classList.add('hidden');
     el.searchBox.classList.add('collapsed');
     state.history = [];
     el.backBtn.classList.add('hidden');
@@ -2823,12 +2882,14 @@ el.searchInput.addEventListener('input', () => {
   const term = el.searchInput.value.trim();
 
   if (!term) {
+    renderRecentSearches();
     navigate(showHome, { push: false });
     state.history = [];
     el.backBtn.classList.add('hidden');
     return;
   }
 
+  recentSearchesEl.classList.add('hidden');
   searchTimer = setTimeout(() => runSearch(term), 320);
 });
 
@@ -2847,6 +2908,9 @@ async function runSearch(term) {
       Fields: 'ProductionYear,Overview,AlbumArtist,Artists,RunTimeTicks,DateCreated,OfficialRating,CommunityRating'
     }));
     if (!isCurrent('search', token)) return;
+
+    // Erfolgreiche Suche merken
+    saveRecentSearch(term);
 
     const items = data.Items || [];
     el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('search.heading', { term }))}</h2>`;
