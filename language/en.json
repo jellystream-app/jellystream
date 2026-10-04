@@ -593,6 +593,7 @@
     "collection.items": "{count} titles in this collection",
     "nav.collections": "Collections",
     "nav.stats": "Statistics",
+    "nav.calendar": "Calendar",
     "update.packageManaged": "Installed through the package manager — updates come from there",
     "update.flatpak": "Installed as a Flatpak — update with „flatpak update\"",
     "artist.topTracks": "Popular tracks",
@@ -658,6 +659,20 @@
     "syncplay.forbidden": "Your account isn't allowed to watch together on this server.",
     "syncplay.unavailable": "Watch together is unavailable right now.",
     "syncplay.accessDenied": "Someone in the group can't access this title.",
-    "syncplay.gone": "That group no longer exists."
+    "syncplay.gone": "That group no longer exists.",
+    "upcoming.title": "Coming up",
+    "upcoming.calendar": "Calendar",
+    "upcoming.today": "Today",
+    "upcoming.tomorrow": "Tomorrow",
+    "upcoming.episode": "S{season} E{episode}",
+    "upcoming.none": "No new episodes are announced for your shows right now.",
+    "parental.title": "Parental controls",
+    "parental.hint": "Sets the highest age rating an account can see. The limit is enforced by the server — so it also applies in the Jellyfin app, the browser and on the TV.",
+    "parental.none": "No limit",
+    "parental.limitFor": "Age limit for {name}",
+    "parental.ownLimit": "Your account is limited to: {limit}. Only an administrator can change this.",
+    "parental.adminHint": "Administrators always see everything",
+    "parental.saved": "{name}: {limit}",
+    "parental.unavailable": "Parental controls can't be loaded right now."
   }
 }

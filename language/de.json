@@ -593,6 +593,7 @@
     "collection.items": "{count} Titel in dieser Sammlung",
     "nav.collections": "Sammlungen",
     "nav.stats": "Statistiken",
+    "nav.calendar": "Kalender",
     "update.packageManaged": "Über die Paketverwaltung installiert — Updates kommen von dort",
     "update.flatpak": "Als Flatpak installiert — Aktualisierung über „flatpak update\"",
     "artist.topTracks": "Beliebte Titel",
@@ -658,6 +659,20 @@
     "syncplay.forbidden": "Dein Konto darf auf diesem Server nicht gemeinsam schauen.",
     "syncplay.unavailable": "Gemeinsam schauen ist gerade nicht erreichbar.",
     "syncplay.accessDenied": "Jemand in der Gruppe hat keinen Zugriff auf diesen Titel.",
-    "syncplay.gone": "Die Gruppe gibt es nicht mehr."
+    "syncplay.gone": "Die Gruppe gibt es nicht mehr.",
+    "upcoming.title": "Demnächst",
+    "upcoming.calendar": "Kalender",
+    "upcoming.today": "Heute",
+    "upcoming.tomorrow": "Morgen",
+    "upcoming.episode": "S{season} F{episode}",
+    "upcoming.none": "Für deine Serien sind gerade keine neuen Folgen angekündigt.",
+    "parental.title": "Jugendschutz",
+    "parental.hint": "Legt fest, bis zu welcher Altersfreigabe ein Konto Inhalte sieht. Die Grenze gilt auf dem Server — also auch in der Jellyfin-App, im Browser und auf dem Fernseher.",
+    "parental.none": "Keine Grenze",
+    "parental.limitFor": "Altersgrenze für {name}",
+    "parental.ownLimit": "Für dein Konto gilt: {limit}. Ändern kann das nur ein Administrator.",
+    "parental.adminHint": "Administratoren sehen immer alles",
+    "parental.saved": "{name}: {limit}",
+    "parental.unavailable": "Der Jugendschutz lässt sich gerade nicht abrufen."
   }
 }

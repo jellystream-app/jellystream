@@ -131,6 +131,7 @@
             <button class="nav-btn" data-view="favorites" type="button" data-i18n="nav.favorites">Meine Liste</button>
             <button class="nav-btn" data-view="playlists" type="button" data-i18n="nav.playlists">Playlists</button>
             <button class="nav-btn" data-view="offline" type="button" data-i18n="nav.offline">Offline</button>
+            <button class="nav-btn" data-view="calendar" type="button" data-i18n="nav.calendar">Kalender</button>
             <button class="nav-btn" data-view="stats" type="button" data-i18n="nav.stats">Statistiken</button>
 
             <span class="nav-divider"></span>
@@ -847,6 +848,14 @@
               <section class="settings-section">
                 <h3 data-i18n="settings.servers">Server</h3>
                 <div id="settings-servers" class="settings-servers"></div>
+              </section>
+
+              <!-- Jugendschutz: setzt die Richtlinie des Servers je Konto,
+                   damit die Grenze auch in jeder anderen App gilt -->
+              <section class="settings-section">
+                <h3 data-i18n="parental.title">Jugendschutz</h3>
+                <p class="settings-hint" data-i18n="parental.hint">Legt fest, bis zu welcher Altersfreigabe ein Konto Inhalte sieht. Die Grenze gilt auf dem Server — also auch in der Jellyfin-App, im Browser und auf dem Fernseher.</p>
+                <div id="parental-list" class="parental-list"></div>
               </section>
 
               <section class="settings-section">

@@ -2863,22 +2863,32 @@ kbd {
 .queue-remove:hover { color: var(--danger); background: rgba(255,107,107,0.14); }
 
 /* ============ X5: UNTERTITEL-DARSTELLUNG ============ */
+/* Ein angedeutetes Filmbild (16:9), Untertitel unten wie im Player */
 .sub-preview {
-  display: grid; place-items: center;
-  height: 84px;
+  display: grid; place-items: end center;
+  aspect-ratio: 16 / 9;
+  max-height: 220px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #1b2432, #0d131c);
+  background:
+    radial-gradient(ellipse at 30% 35%, rgba(255,190,120,0.35), transparent 55%),
+    radial-gradient(ellipse at 75% 60%, rgba(90,140,220,0.35), transparent 60%),
+    linear-gradient(160deg, #3a4656, #121820);
   border: 1px solid var(--border);
   margin-bottom: 13px;
+  padding-bottom: calc(14px + var(--sub-preview-lift, 0px));
   overflow: hidden;
+  transition: padding-bottom 0.15s var(--ease);
 }
 .sub-preview span {
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border-radius: 3px;
   color: var(--sub-color, #fff);
   background: rgba(0,0,0,var(--sub-bg, 0.76));
+  font-family: var(--sub-font, inherit);
   font-size: calc(0.95rem * var(--sub-scale, 1));
-  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  line-height: 1.4;
+  text-shadow: var(--sub-shadow, 0 1px 3px rgba(0,0,0,0.9));
+  text-align: center;
 }
 .slider-row {
   display: flex; align-items: center; gap: 14px;
@@ -4031,3 +4041,43 @@ a.lang-author:hover {
   color: var(--on-accent);
 }
 .vp-syncplay:not(.hidden) + .vp-method { margin-left: 8px; }
+
+/* =========================== KALENDER =========================== */
+.calendar-day { margin: 0 0 26px; max-width: 860px; }
+.calendar-date {
+  margin: 0 0 8px;
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--accent);
+}
+.calendar-entry {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background 0.14s var(--ease);
+}
+.calendar-entry:hover, .calendar-entry:focus-visible { background: var(--surface-2); }
+.calendar-entry img, .calendar-thumb {
+  width: 44px; height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.calendar-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.calendar-text strong { font-size: 0.95rem; font-weight: 600; }
+.calendar-text small {
+  color: var(--muted); font-size: 0.84rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.calendar-entry time {
+  color: var(--muted-2); font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================= JUGENDSCHUTZ ========================= */
+.parental-list { display: grid; gap: 6px; }
+.parental-user { display: flex; align-items: center; gap: 10px; }
+.parental-row select { min-width: 170px; }

@@ -119,11 +119,18 @@ function applySubtitleStyle() {
   // Textspur-Container selbst nach oben geschoben.
   document.documentElement.style.setProperty('--sub-lift', `${prefs.subPosition}px`);
 
+  /* Die Vorschau zeigt alles, was auch im Film greift — vorher fehlten
+     Schrift, Umrandung und Hoehe, und man sah das Ergebnis erst beim
+     naechsten Abspielen. */
   const preview = $('sub-preview');
   if (preview) {
     preview.style.setProperty('--sub-scale', prefs.subSize);
-    preview.style.setProperty('--sub-bg', prefs.subBg);
+    preview.style.setProperty('--sub-bg', prefs.subOutline ? 0 : prefs.subBg);
     preview.style.setProperty('--sub-color', prefs.subColor);
+    preview.style.setProperty('--sub-font', SUB_FONTS[prefs.subFont] || SUB_FONTS.system);
+    preview.style.setProperty('--sub-shadow', outline);
+    // Die Vorschau ist kleiner als ein Film: Hoehe anteilig andeuten
+    preview.style.setProperty('--sub-preview-lift', `${Math.min(40, Math.round((prefs.subPosition || 0) / 4))}px`);
   }
 }
 
@@ -862,6 +869,7 @@ async function openSettings() {
   renderSettingsServers();
   renderCardShapeLibraries();
   renderPluginList();
+  renderParentalControls();
   buildSeekStepOptions();
   renderLanguageList();
 
@@ -1926,6 +1934,118 @@ const PLUGIN_SUPPORT = {
 function pluginSupportKey(name) {
   const key = String(name || '').toLowerCase().replace(/[^a-z]/g, '');
   return PLUGIN_SUPPORT[key] || null;
+}
+
+/* ==================== JUGENDSCHUTZ ====================
+   Jellystream filtert nicht selbst: Ein clientseitiger Filter waere
+   mit jeder anderen App umgangen. Stattdessen wird die Richtlinie des
+   Servers gesetzt (MaxParentalRating je Konto) — die gilt ueberall.
+
+   Dafuer braucht es ein Administratorkonto. Fuer alle anderen zeigt
+   der Abschnitt nur, welche Grenze fuer sie selbst gilt.
+   ====================================================== */
+
+async function renderParentalControls() {
+  const host = $('parental-list');
+  if (!host) return;
+  host.innerHTML = `<p class="settings-hint">${escapeHtml(t('common.loading'))}</p>`;
+
+  let me;
+  let ratings = [];
+  try {
+    [me, ratings] = await Promise.all([
+      api(`/Users/${state.userId}`),
+      api('/Localization/ParentalRatings').catch(() => [])
+    ]);
+  } catch (error) {
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('parental.unavailable'))}</p>`;
+    return;
+  }
+
+  /* Die Liste des Servers enthaelt je Stufe mehrere Namen (FSK-12,
+     PG-13, …). Je Wert einer genuegt, die Namen werden zusammengefasst. */
+  const levels = new Map();
+  (ratings || []).forEach((r) => {
+    const value = r.Value ?? r.RatingScore?.Score;
+    if (value == null) return;
+    const names = levels.get(value) || [];
+    if (names.length < 3) names.push(r.Name);
+    levels.set(value, names);
+  });
+  const options = [...levels.entries()].sort((a, b) => a[0] - b[0]);
+
+  const describe = (value) => (value == null
+    ? t('parental.none')
+    : (levels.get(value) || [String(value)]).join(' / '));
+
+  if (!me?.Policy?.IsAdministrator) {
+    host.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'settings-hint';
+    p.textContent = t('parental.ownLimit', { limit: describe(me?.Policy?.MaxParentalRating ?? null) });
+    host.appendChild(p);
+    return;
+  }
+
+  let users = [];
+  try {
+    users = await api('/Users');
+  } catch (error) {
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('parental.unavailable'))}</p>`;
+    return;
+  }
+
+  host.innerHTML = '';
+  users.forEach((user) => {
+    const row = document.createElement('div');
+    row.className = 'setting-row parental-row';
+
+    const label = document.createElement('span');
+    label.innerHTML = `${avatarMarkup({
+      username: user.Name, userId: user.Id, serverUrl: state.serverUrl, imageTag: user.PrimaryImageTag
+    }, 34, 'server-face')}<strong></strong>`;
+    label.className = 'parental-user';
+    label.querySelector('strong').textContent = user.Name;
+
+    const select = document.createElement('select');
+    select.className = 'select-input';
+    select.setAttribute('aria-label', t('parental.limitFor', { name: user.Name }));
+    const current = user.Policy?.MaxParentalRating ?? null;
+    select.innerHTML = `<option value="">${escapeHtml(t('parental.none'))}</option>` +
+      options.map(([value]) =>
+        `<option value="${value}" ${value === current ? 'selected' : ''}>${escapeHtml(describe(value))}</option>`).join('');
+
+    // Admins schraenkt man nicht ueber diesen Weg ein — man sperrt sich sonst selbst aus
+    if (user.Policy?.IsAdministrator) {
+      select.disabled = true;
+      select.title = t('parental.adminHint');
+    }
+
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      const value = select.value === '' ? null : Number(select.value);
+      try {
+        /* Die ganze Richtlinie zuruecksenden: Der Server ersetzt sie,
+           fehlende Felder wuerden sonst zurueckgesetzt. Frisch holen,
+           damit eine Aenderung von anderswo nicht ueberschrieben wird. */
+        const fresh = await api(`/Users/${user.Id}`);
+        await api(`/Users/${user.Id}/Policy`, {
+          method: 'POST',
+          body: JSON.stringify({ ...fresh.Policy, MaxParentalRating: value })
+        });
+        user.Policy = { ...fresh.Policy, MaxParentalRating: value };
+        toast(t('parental.saved', { name: user.Name, limit: describe(value) }));
+      } catch (error) {
+        select.value = current == null ? '' : String(current);
+        toast(t('common.error', { error: error.message }), true);
+      } finally {
+        select.disabled = false;
+      }
+    });
+
+    row.append(label, select);
+    host.appendChild(row);
+  });
 }
 
 async function renderPluginList() {
