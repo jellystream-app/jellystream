@@ -38,6 +38,9 @@ fs.mkdirSync(WEB, { recursive: true });
   fs.copyFileSync(path.join(ROOT, f), path.join(WEB, f));
 });
 
+/* --- Zusaetzliche Stylesheets --- */
+copyDir(path.join(ROOT, 'styles'), path.join(WEB, 'styles'));
+
 /* --- Ansichten, aus renderer.js herausgeloest --- */
 copyDir(path.join(ROOT, 'views'), path.join(WEB, 'views'));
 
