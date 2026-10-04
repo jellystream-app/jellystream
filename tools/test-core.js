@@ -64,7 +64,8 @@ files.forEach((name) => {
 });
 
 /* Die Oberflächen dürfen den Kern nutzen — aber der Kern nicht sie. */
-const uiFiles = ['renderer.js', 'player.js', 'settings.js', 'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'tvmode.js'];
+const uiFiles = ['renderer.js', 'player.js', 'settings.js', 'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'tvmode.js',
+  ...fs.readdirSync(path.join(ROOT, 'views')).map((f) => 'views/' + f)];
 const coreNames = files.map((f) => f.replace('.js', ''));
 
 files.forEach((name) => {
@@ -84,6 +85,16 @@ const allUi = rendererText + playerText +
 check('Desktop nutzt t() aus dem Kern', /\bt\(/.test(allUi));
 check('Desktop nutzt die Wiedergabe-Aushandlung',
   /fetchPlaybackInfo|resolveStream/.test(playerText));
+
+/* Ansichten unter views/ laden NACH renderer.js. Nennt renderer.js eine
+   ihrer Funktionen beim Laden direkt (etwa in der VIEWS-Tabelle als
+   `music: showMusic`), ist sie dann noch nicht definiert — der ganze
+   Renderer bricht ab. Aufrufe in Funktionen und Pfeilfunktionen sind
+   unbedenklich; gesucht wird die nackte Nennung als Wert. */
+const viewFns = fs.readdirSync(path.join(ROOT, 'views')).flatMap((f) =>
+  [...fs.readFileSync(path.join(ROOT, 'views', f), 'utf8').matchAll(/^(?:async\s+)?function\s+(\w+)/gm)].map((m) => m[1]));
+const eagerRefs = viewFns.filter((fn) => new RegExp(`:\\s*${fn}\\s*[,\\n}]`).test(rendererText));
+check('renderer.js nennt keine Ansicht aus views/ beim Laden', eagerRefs.length === 0, eagerRefs.join(', '));
 
 /* index.html muss den Kern VOR der Oberfläche laden */
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');

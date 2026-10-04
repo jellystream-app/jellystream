@@ -38,6 +38,9 @@ fs.mkdirSync(WEB, { recursive: true });
   fs.copyFileSync(path.join(ROOT, f), path.join(WEB, f));
 });
 
+/* --- Ansichten, aus renderer.js herausgeloest --- */
+copyDir(path.join(ROOT, 'views'), path.join(WEB, 'views'));
+
 /* --- Der geteilte Kern --- */
 copyDir(path.join(ROOT, 'core'), path.join(WEB, 'core'));
 

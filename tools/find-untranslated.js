@@ -130,6 +130,7 @@ function scanHtml(file) {
 
 [
   'renderer.js', 'player.js', 'offline.js', 'settings.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'tvmode.js',
+  ...fs.readdirSync(path.join(ROOT, 'views')).map((f) => 'views/' + f),
   'core/i18n.js', 'core/playback.js'
 ].forEach(scanJs);
 scanHtml('index.html');
