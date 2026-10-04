@@ -94,6 +94,18 @@
 [data-theme="light"] .hero-overview { text-shadow: none; }
 [data-theme="light"] .tb-btn:hover { background: rgba(10,20,40,0.08); }
 
+/* Inter liegt im Paket statt bei Google Fonts: Die CSP laesst fremde
+   Stylesheets ohnehin nicht zu, und ein selbst gehosteter Client soll
+   beim Start keinen Dritten anfragen. Eine variable Datei deckt alle
+   Schnitte von 100 bis 900 ab. Lizenz: fonts/Inter-LICENSE.txt (OFL). */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -189,15 +201,16 @@ body.is-mac .tb-controls { display: none; }
 body.is-mac .tb-drag { padding-left: 80px; justify-content: center; }
 
 /* ============================== LOGIN ============================== */
-/* Ruhig, aber mit subtiler Dot-Textur — mehr Tiefe ohne Effektebenen. */
+/* Flach und ruhig: eine Flaeche, keine Verlaeufe, kein Leuchten,
+   keine Effektebenen. Nur Text, Felder und ein Knopf.
+   (Eine Punkt-Textur war kurz drin — test-login.js haelt die
+   Entscheidung fuer die glatte Flaeche fest.) */
 .login-screen {
   position: fixed; inset: var(--tb-height) 0 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
   overflow: hidden;
-  background-color: var(--bg);
-  background-image: radial-gradient(circle, rgba(255,255,255,0.042) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background: var(--bg);
 }
 
 .login-header {

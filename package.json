@@ -90,6 +90,7 @@
       "audit.html",
       "styles.css",
       "logo.svg",
+      "fonts/**",
       "build/icon.ico",
       "build/icon.png",
       "build/icons/**",

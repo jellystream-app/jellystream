@@ -47,6 +47,9 @@ copyDir(path.join(ROOT, 'language'), path.join(WEB, 'language'), (n) => n.endsWi
 /* --- Symbole --- */
 copyDir(path.join(ROOT, 'build', 'icons'), path.join(WEB, 'icons'), (n) => n.endsWith('.png'));
 
+/* --- Schrift: styles.css verweist relativ auf fonts/ --- */
+copyDir(path.join(ROOT, 'fonts'), path.join(WEB, 'fonts'));
+
 /* ==================================================================
    Die Web-Brücke
 
