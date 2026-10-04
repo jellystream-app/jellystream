@@ -3155,6 +3155,113 @@ async function loadLibraries() {
   }
 }
 
+/* ============================ STATISTIKEN ============================ */
+
+async function showStats() {
+  setActiveNav('stats');
+  setTopGap(true);
+  const token = newToken('stats');
+  el.viewRoot.innerHTML = `<h2 class="section-title">${escapeHtml(t('nav.stats'))}</h2><div class="stats-loading"><div class="spinner"></div></div>`;
+
+  try {
+    /* Jellyfin liefert UserData in Items-Queries, aber keinen
+       aggregierten Überblick direkt. Wir holen uns alle gesehenen
+       Inhalte und errechnen die Zahlen client-seitig. */
+    const [moviesData, episodesData] = await Promise.all([
+      api(itemsUrl({
+        IncludeItemTypes: 'Movie',
+        Recursive: 'true',
+        Filters: 'IsPlayed',
+        Fields: 'RunTimeTicks,Genres,ProductionYear',
+        Limit: '10000'
+      })),
+      api(itemsUrl({
+        IncludeItemTypes: 'Episode',
+        Recursive: 'true',
+        Filters: 'IsPlayed',
+        Fields: 'RunTimeTicks,Genres,SeriesName,ProductionYear',
+        Limit: '10000'
+      }))
+    ]);
+    if (!isCurrent('stats', token)) return;
+
+    const movies   = moviesData.Items || [];
+    const episodes = episodesData.Items || [];
+
+    /* Laufzeit in Stunden */
+    const toHours = (items) => {
+      const ticks = items.reduce((sum, it) => sum + (it.RunTimeTicks || 0), 0);
+      return Math.round(ticks / 36000000000); // Ticks → Stunden
+    };
+
+    const movieHours   = toHours(movies);
+    const episodeHours = toHours(episodes);
+    const totalHours   = movieHours + episodeHours;
+
+    /* Top-Genres */
+    const genreCount = {};
+    [...movies, ...episodes].forEach((it) => {
+      (it.Genres || []).forEach((g) => { genreCount[g] = (genreCount[g] || 0) + 1; });
+    });
+    const topGenres = Object.entries(genreCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+
+    /* Filme pro Jahr */
+    const yearCount = {};
+    movies.forEach((it) => {
+      if (it.ProductionYear) yearCount[it.ProductionYear] = (yearCount[it.ProductionYear] || 0) + 1;
+    });
+    const topYears = Object.entries(yearCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    const genreBar = (label, count, max) =>
+      `<div class="stat-bar-row">
+         <span class="stat-bar-label">${escapeHtml(label)}</span>
+         <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${Math.round((count / max) * 100)}%"></div></div>
+         <span class="stat-bar-val">${count}</span>
+       </div>`;
+
+    const maxGenre = topGenres[0]?.[1] || 1;
+
+    el.viewRoot.innerHTML = `
+      <h2 class="section-title">${escapeHtml(t('nav.stats'))}</h2>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num">${totalHours}</div>
+          <div class="stat-label">Stunden gesehen gesamt</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${movies.length}</div>
+          <div class="stat-label">Filme gesehen</div>
+          <div class="stat-sub">${movieHours} h</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${episodes.length}</div>
+          <div class="stat-label">Episoden gesehen</div>
+          <div class="stat-sub">${episodeHours} h</div>
+        </div>
+      </div>
+
+      ${topGenres.length ? `
+      <h3 class="stats-section-title">Top Genres</h3>
+      <div class="stat-bars">
+        ${topGenres.map(([genre, count]) => genreBar(genre, count, maxGenre)).join('')}
+      </div>` : ''}
+
+      ${topYears.length ? `
+      <h3 class="stats-section-title">Meistgesehene Jahrzehnte (Filme)</h3>
+      <div class="stat-bars">
+        ${topYears.map(([year, count]) => genreBar(year, count, topYears[0]?.[1] || 1)).join('')}
+      </div>` : ''}`;
+
+  } catch (error) {
+    if (!isCurrent('stats', token)) return;
+    console.error(error);
+    showError(t('common.error', { error: error.message }), showStats);
+  }
+}
+
 /* --------------------------- NAVBAR --------------------------- */
 
 const VIEWS = {
@@ -3164,7 +3271,8 @@ const VIEWS = {
   music: showMusic,
   favorites: () => showFavorites(),
   playlists: () => showPlaylists(),
-  offline: () => showOffline()
+  offline: () => showOffline(),
+  stats: () => showStats()
 };
 
 // Logo führt zur Startseite
