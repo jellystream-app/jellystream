@@ -456,6 +456,11 @@
               <span data-i18n="settings.catServers">Server</span>
             </button>
 
+            <button class="settings-cat" type="button" data-cat="trakt">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+              <span data-i18n="settings.catTrakt">Trakt.tv</span>
+            </button>
+
             <button class="settings-cat" type="button" data-cat="about">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.4"/></svg>
               <span data-i18n="settings.catAbout">Über</span>
@@ -858,6 +863,63 @@
               </section>
             </div>
 
+            <!-- ============ TRAKT.TV ============ -->
+            <div class="settings-panel" data-panel="trakt">
+              <section class="settings-section">
+                <h3 data-i18n="trakt.title">Trakt.tv</h3>
+                <p class="settings-hint" data-i18n="trakt.hint">Trägt Gesehenes automatisch in dein Trakt-Konto ein.</p>
+
+                <div class="setting-stack" id="trakt-app-row">
+                  <label for="trakt-client-id" data-i18n="trakt.clientId">Client ID</label>
+                  <small class="settings-hint" data-i18n="trakt.appHint">Lege unter trakt.tv eine eigene Anwendung an (Redirect URI: urn:ietf:wg:oauth:2.0:oob) und trage Client ID und Client Secret hier ein. Beides wird verschlüsselt gespeichert.</small>
+                  <div class="field-input">
+                    <input id="trakt-client-id" type="text" spellcheck="false" autocomplete="off" />
+                  </div>
+                  <label for="trakt-client-secret" data-i18n="trakt.clientSecret">Client Secret</label>
+                  <div class="field-input">
+                    <input id="trakt-client-secret" type="password" spellcheck="false" autocomplete="off" />
+                  </div>
+                  <a class="settings-link" href="https://trakt.tv/oauth/applications/new" target="_blank" rel="noopener noreferrer"
+                     data-i18n="trakt.createApp">Anwendung bei Trakt anlegen</a>
+                </div>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.account">Konto</strong>
+                    <small id="trakt-status-text" aria-live="polite">—</small>
+                  </span>
+                  <span class="dl-dir-actions">
+                    <button id="trakt-connect" class="outline-btn small" type="button" data-i18n="trakt.connect">Verbinden</button>
+                    <button id="trakt-disconnect" class="outline-btn small hidden" type="button" data-i18n="trakt.disconnect">Trennen</button>
+                  </span>
+                </div>
+                <div class="trakt-code hidden" id="trakt-code-box" aria-live="polite">
+                  <span data-i18n="trakt.enterCode">Gib diesen Code auf trakt.tv ein:</span>
+                  <strong id="trakt-code"></strong>
+                  <button class="outline-btn small" id="trakt-cancel" type="button" data-i18n="login.cancel">Abbrechen</button>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <label class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.auto">Automatisch eintragen</strong>
+                    <small data-i18n="trakt.autoHint">Ab 80 % Wiedergabe gilt ein Titel auf Trakt als gesehen</small>
+                  </span>
+                  <input type="checkbox" id="trakt-auto" class="switch" />
+                </label>
+
+                <div class="setting-row">
+                  <span>
+                    <strong data-i18n="trakt.pushHistory">Verlauf übertragen</strong>
+                    <small data-i18n="trakt.pushHistoryHint">Sendet alle in Jellyfin gesehenen Filme und Folgen an Trakt</small>
+                  </span>
+                  <button id="trakt-sync-now" class="outline-btn small" type="button" data-i18n="sync.now" disabled>Jetzt abgleichen</button>
+                </div>
+                <div class="sync-status" id="trakt-sync-result" aria-live="polite"></div>
+              </section>
+            </div>
+
             <!-- ============ ÜBER ============ -->
             <div class="settings-panel" data-panel="about">
               <section class="settings-section">
@@ -1034,10 +1096,12 @@
 
     <audio id="audio-el"></audio>
 
+    <script src="core/vault.js"></script>
     <script src="core/i18n.js"></script>
     <script src="core/libraries.js"></script>
     <script src="core/livetv.js"></script>
     <script src="core/libsync.js"></script>
+    <script src="core/trakt.js"></script>
     <script src="i18n-dom.js"></script>
     <script src="renderer.js"></script>
     <script src="core/playback.js"></script>

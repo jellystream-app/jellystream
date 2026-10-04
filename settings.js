@@ -75,6 +75,9 @@ const prefs = {
   discordShowTitle: true,   // greift nur, wenn discordRpc an ist
   discordAppId: DISCORD_APP_ID, // eigene ID moeglich, siehe unten
 
+  /* --- Trakt.tv --- */
+  traktAuto: false,         // nach Wiedergabe automatisch als gesehen markieren
+
   /* --- Eigenes CSS --- */
   customCss: '',
   customCssOn: true
@@ -340,7 +343,7 @@ function toast(message, isError = false) {
 
 function loadServers() {
   try {
-    return JSON.parse(localStorage.getItem('jf-servers') || '[]');
+    return vault.getJSON('jf-servers', []) || [];
   } catch (error) {
     return [];
   }
@@ -348,7 +351,7 @@ function loadServers() {
 
 function saveServers(servers) {
   try {
-    localStorage.setItem('jf-servers', JSON.stringify(servers));
+    vault.setJSON('jf-servers', servers);
   } catch (error) {
     console.warn('Server konnten nicht gespeichert werden');
   }
@@ -519,10 +522,10 @@ async function switchToServer(entry) {
   closeVideo();
 
   try {
-    localStorage.setItem('jf-session', JSON.stringify({
+    vault.setJSON('jf-session', {
       serverUrl: state.serverUrl, token: state.token,
       userId: state.userId, username: state.username
-    }));
+    });
   } catch (error) {
     /* ignorieren */
   }
@@ -1467,10 +1470,10 @@ async function startQuickConnect() {
         state.username = auth.User.Name;
 
         try {
-          localStorage.setItem('jf-session', JSON.stringify({
+          vault.setJSON('jf-session', {
             serverUrl: url, token: auth.AccessToken,
             userId: auth.User.Id, username: auth.User.Name
-          }));
+          });
         } catch (error) {
           /* ignorieren */
         }
@@ -1838,6 +1841,9 @@ function onLanguageChanged() {
   if (typeof renderSettingsServers === 'function' && $('settings-servers')) renderSettingsServers();
   if (typeof renderCardShapeLibraries === 'function') renderCardShapeLibraries();
   refreshDownloadSettings();
+  if (typeof updateTraktUi === 'function') updateTraktUi();
+  // Tray-Menue spricht dieselbe Sprache wie die App
+  if (typeof mediaControl !== 'undefined') mediaControl.report();
 
   // Werte mit Einheiten neu formatieren
   const subPos = $('sub-position-val');
@@ -2223,3 +2229,129 @@ loadPrefs();
 
 // Erst jetzt — vorher waeren es noch die Standardwerte
 initDiscordPresence();
+
+/* ===================== TRAKT.TV =====================
+   Die Logik steckt in core/trakt.js; hier nur Bedienung und Anzeige.
+   ===================================================== */
+
+let traktAuthCancelled = false;
+
+function updateTraktUi() {
+  const statusText = $('trakt-status-text');
+  if (!statusText || typeof trakt === 'undefined') return;
+
+  const configured = trakt.configured();
+  const connected = trakt.connected();
+  const cfg = trakt.config();
+
+  const idInput = $('trakt-client-id');
+  const secretInput = $('trakt-client-secret');
+  // Nicht ueberschreiben, waehrend jemand tippt
+  if (document.activeElement !== idInput) idInput.value = cfg.clientId;
+  if (document.activeElement !== secretInput) secretInput.value = cfg.clientSecret;
+
+  statusText.textContent = connected
+    ? t('trakt.connectedAs', { name: trakt.username() || '—' })
+    : configured ? t('trakt.notConnected') : t('trakt.notConfigured');
+  statusText.classList.toggle('ok', connected);
+
+  $('trakt-connect').classList.toggle('hidden', connected);
+  $('trakt-connect').disabled = !configured;
+  $('trakt-disconnect').classList.toggle('hidden', !connected);
+  $('trakt-sync-now').disabled = !connected;
+  $('trakt-auto').checked = Boolean(prefs.traktAuto);
+  $('trakt-auto').disabled = !connected;
+}
+
+function saveTraktConfig() {
+  trakt.setConfig($('trakt-client-id').value, $('trakt-client-secret').value);
+  updateTraktUi();
+}
+
+$('trakt-client-id')?.addEventListener('change', saveTraktConfig);
+$('trakt-client-secret')?.addEventListener('change', saveTraktConfig);
+
+$('trakt-auto')?.addEventListener('change', (event) => {
+  prefs.traktAuto = event.target.checked;
+  savePrefs();
+});
+
+function traktErrorText(error) {
+  const known = { denied: 'trakt.denied', expired: 'trakt.expired', cancelled: 'trakt.cancelled' };
+  return known[error.message] ? t(known[error.message]) : t('common.error', { error: error.message });
+}
+
+$('trakt-connect')?.addEventListener('click', async () => {
+  const btn = $('trakt-connect');
+  const box = $('trakt-code-box');
+  saveTraktConfig();
+  btn.disabled = true;
+  traktAuthCancelled = false;
+
+  try {
+    const device = await trakt.startDeviceAuth();
+    $('trakt-code').textContent = device.user_code;
+    box.classList.remove('hidden');
+    // main.js oeffnet http(s)-Links im Standardbrowser
+    window.open(device.verification_url, '_blank', 'noopener');
+
+    const username = await trakt.pollDeviceAuth(device, () => traktAuthCancelled);
+    toast(t('trakt.connectedAs', { name: username || '—' }));
+  } catch (error) {
+    if (error.message !== 'cancelled') toast(traktErrorText(error), true);
+  } finally {
+    box.classList.add('hidden');
+    btn.disabled = false;
+    updateTraktUi();
+  }
+});
+
+$('trakt-cancel')?.addEventListener('click', () => {
+  traktAuthCancelled = true;
+  $('trakt-code-box').classList.add('hidden');
+});
+
+$('trakt-disconnect')?.addEventListener('click', () => {
+  trakt.disconnect();
+  updateTraktUi();
+  toast(t('trakt.disconnected'));
+});
+
+/* Verlauf aus Jellyfin an Trakt — seitenweise, damit grosse
+   Bibliotheken weder den Server noch Trakt mit einer Riesenanfrage
+   belasten. */
+async function fetchAllPlayed(type) {
+  const PAGE = 1000;
+  const items = [];
+  for (let start = 0; ; start += PAGE) {
+    const page = await api(itemsUrl({
+      IncludeItemTypes: type, Recursive: 'true', Filters: 'IsPlayed',
+      Fields: 'ProviderIds,ProductionYear', StartIndex: String(start), Limit: String(PAGE)
+    }));
+    items.push(...(page?.Items || []));
+    if (!page?.Items?.length || items.length >= (page.TotalRecordCount || 0)) break;
+  }
+  return items;
+}
+
+$('trakt-sync-now')?.addEventListener('click', async () => {
+  const btn = $('trakt-sync-now');
+  const result = $('trakt-sync-result');
+  btn.disabled = true;
+  result.textContent = t('trakt.syncing');
+
+  try {
+    const [movies, episodes] = await Promise.all([fetchAllPlayed('Movie'), fetchAllPlayed('Episode')]);
+    const sent = await trakt.pushHistory([...movies, ...episodes]);
+    const msg = t('trakt.syncDone', { movies: sent.movies, episodes: sent.episodes, skipped: sent.skipped });
+    result.textContent = msg;
+    toast(msg);
+  } catch (error) {
+    result.textContent = traktErrorText(error);
+    toast(traktErrorText(error), true);
+  } finally {
+    updateTraktUi();
+  }
+});
+
+updateTraktUi();

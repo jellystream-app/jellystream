@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const downloads = require('./downloads');
 const languages = require('./languages');
@@ -23,7 +23,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      /* Sagt preload.js, dass hier jemand auf secrets:* antwortet.
+         sendSync ohne Empfaenger blockiert sonst fuer immer — etwa in
+         den Tests, die nur preload.js laden. */
+      additionalArguments: ['--jf-secrets']
     }
   });
 
@@ -136,6 +140,41 @@ ipcMain.handle('discord:setActivity', (event, payload) => discord.setActivity(pa
 ipcMain.handle('discord:clear', () => discord.clear());
 ipcMain.handle('discord:state', () => discord.getState());
 
+/* ======================= ZUGANGSDATEN ======================= */
+/* Tokens fuer Jellyfin und Trakt lagen im Klartext in localStorage —
+   jedes Programm mit Lesezugriff aufs Profil haette sie mitnehmen
+   koennen. safeStorage verschluesselt mit dem Schluessel des Systems
+   (DPAPI unter Windows, Schluesselbund/libsecret unter Linux).
+
+   Synchron, weil der Renderer localStorage synchron liest und die
+   Aufrufstellen sonst alle umgebaut werden muessten. Es geht um ein
+   paar hundert Bytes — das blockiert nichts Spuerbares. */
+
+ipcMain.on('secrets:available', (event) => {
+  try {
+    event.returnValue = safeStorage.isEncryptionAvailable();
+  } catch (error) {
+    event.returnValue = false;
+  }
+});
+
+ipcMain.on('secrets:encrypt', (event, text) => {
+  try {
+    event.returnValue = safeStorage.encryptString(String(text)).toString('base64');
+  } catch (error) {
+    event.returnValue = null;
+  }
+});
+
+ipcMain.on('secrets:decrypt', (event, b64) => {
+  try {
+    event.returnValue = safeStorage.decryptString(Buffer.from(String(b64), 'base64'));
+  } catch (error) {
+    // Anderer Rechner, neuer Schluesselbund: dann eben neu anmelden
+    event.returnValue = null;
+  }
+});
+
 /* ======================= UPDATES ======================= */
 
 ipcMain.handle('updater:state', () => updater.getState());
@@ -146,6 +185,71 @@ app.whenReady().then(() => {
   languages.init();
 
   const win = createWindow();
+
+  /* Medientasten der Tastatur laufen NICHT ueber globalShortcut: Das
+     belegt die Taste systemweit, auch wenn hier gar nichts spielt, und
+     Spotify & Co. bekommen sie nicht mehr. Chromium leitet sie ueber
+     navigator.mediaSession weiter — und zwar nur an die App, die
+     gerade Medien abspielt. Das erledigt der Renderer (player.js). */
+
+  /* Tray-Symbol mit kleiner Wiedergabesteuerung. PNG statt ICO:
+     Linux-Panels zeigen ICO oft gar nicht an. */
+  const trayIcon = nativeImage
+    .createFromPath(path.join(__dirname, 'build', 'icons', '32x32.png'))
+    .resize({ width: 16, height: 16 });
+  const tray = new Tray(trayIcon);
+  tray.setToolTip('Jellystream');
+
+  const sendTrayAction = (action) => {
+    if (!win.isDestroyed()) win.webContents.send('tray:action', action);
+  };
+
+  const showWindow = () => {
+    if (win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  };
+
+  /* Die Beschriftungen kommen aus dem Renderer — dort liegen die
+     Uebersetzungen. Bis er sich meldet, gelten die englischen. */
+  let trayState = {
+    playing: false,
+    active: false,
+    title: '',
+    labels: { play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', show: 'Show window', quit: 'Quit' }
+  };
+
+  const rebuildTrayMenu = () => {
+    const { playing, active, title, labels } = trayState;
+    const template = [];
+    if (active && title) template.push({ label: title, enabled: false }, { type: 'separator' });
+    template.push(
+      { label: playing ? labels.pause : labels.play, enabled: active, click: () => sendTrayAction('playpause') },
+      { label: labels.previous, enabled: active, click: () => sendTrayAction('prev') },
+      { label: labels.next, enabled: active, click: () => sendTrayAction('next') },
+      { type: 'separator' },
+      { label: labels.show, click: showWindow },
+      { type: 'separator' },
+      { label: labels.quit, click: () => app.quit() }
+    );
+    tray.setContextMenu(Menu.buildFromTemplate(template));
+    tray.setToolTip(active && title ? `Jellystream — ${title}` : 'Jellystream');
+  };
+  rebuildTrayMenu();
+
+  tray.on('click', showWindow);
+
+  ipcMain.on('tray:state', (_event, payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    trayState = {
+      playing: Boolean(payload.playing),
+      active: Boolean(payload.active),
+      title: String(payload.title || '').slice(0, 80),
+      labels: { ...trayState.labels, ...(payload.labels || {}) }
+    };
+    rebuildTrayMenu();
+  });
 
   // Der Manager meldet Fortschritt und Listenaenderungen an genau dieses Fenster
   downloads.init((message) => {

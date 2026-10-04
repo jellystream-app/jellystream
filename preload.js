@@ -81,3 +81,25 @@ contextBridge.exposeInMainWorld('updater', {
     return () => ipcRenderer.removeListener('updater:event', handler);
   }
 });
+
+// Tray-Symbol: Renderer meldet Zustand und Beschriftungen, bekommt
+// die Klicks aus dem Menue zurueck (playpause, next, prev)
+contextBridge.exposeInMainWorld('tray', {
+  setState: (payload) => ipcRenderer.send('tray:state', payload),
+  onAction: (callback) => {
+    const handler = (_event, action) => callback(action);
+    ipcRenderer.on('tray:action', handler);
+    return () => ipcRenderer.removeListener('tray:action', handler);
+  }
+});
+
+// Zugangsdaten verschluesseln (safeStorage im Hauptprozess). Nur
+// Zeichenketten rein und raus — kein Zugriff auf Schluessel oder Dateien.
+// Nur wenn main.js es ankuendigt: sendSync ohne Empfaenger kehrt nie zurueck.
+if (process.argv.includes('--jf-secrets')) {
+  contextBridge.exposeInMainWorld('secrets', {
+    available: () => ipcRenderer.sendSync('secrets:available'),
+    encrypt: (text) => ipcRenderer.sendSync('secrets:encrypt', text),
+    decrypt: (b64) => ipcRenderer.sendSync('secrets:decrypt', b64)
+  });
+}

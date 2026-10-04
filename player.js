@@ -284,7 +284,12 @@ function startReporting(kind, item, { mediaSourceId, isTranscoding = false, play
     mediaSourceId: mediaSourceId || item.Id,
     isTranscoding,
     kind,
-    timer: null
+    timer: null,
+    /* Der Titel selbst, nicht nur seine Kennung: Beim Wechsel zur
+       naechsten Folge steht in vpCurrent.item schon die neue, wenn
+       diese Session abgemeldet wird. Trakt bekaeme sonst die falsche. */
+    item,
+    live: kind === 'video' && Boolean(vpCurrent.live)
   };
   reporting[kind] = session;
 
@@ -350,6 +355,18 @@ function stopReporting(kind, positionSeconds = null) {
     PlaySessionId: session.playSessionId,
     PositionTicks: Math.round(position * TICKS_PER_SECOND)
   });
+
+  /* Trakt: ab 80 % melden. Trakt traegt dann selbst als gesehen ein;
+     darunter wuerde nur ein angefangener Titel gemeldet. Lokal
+     gespielte Downloads zaehlen genauso. Live-TV hat keine Dauer. */
+  if (kind === 'video' && prefs.traktAuto && typeof trakt !== 'undefined' && !session.live) {
+    const item = session.item;
+    const duration = ticksToSeconds(item?.RunTimeTicks) || mediaDuration();
+    const percent = duration > 0 ? (position / duration) * 100 : 0;
+    if (item && percent >= 80) {
+      trakt.scrobble(item, percent).catch((error) => console.warn('Trakt:', error.message));
+    }
+  }
 }
 
 /* Beim Schliessen des Fensters die Position noch sichern.
@@ -447,8 +464,10 @@ async function playVideo(item, siblings = [], options = {}) {
   let source = null;
   let detail = null;
   try {
-    detail = await api(`/Users/${state.userId}/Items/${item.Id}?Fields=MediaSources,MediaStreams,Chapters`);
+    detail = await api(`/Users/${state.userId}/Items/${item.Id}?Fields=MediaSources,MediaStreams,Chapters,ProviderIds`);
     source = detail?.MediaSources?.[0] || null;
+    // Kennungen fuer Trakt — Titel aus Listen bringen sie nicht immer mit
+    if (detail?.ProviderIds && !item.ProviderIds) item = { ...item, ProviderIds: detail.ProviderIds };
   } catch (error) {
     console.warn('Spuren konnten nicht geladen werden:', error);
   }
@@ -2187,11 +2206,98 @@ document.querySelectorAll('.mf-tab').forEach((tab) => {
   });
 });
 
-/* --- Systemsteuerung (Medientasten) --- */
+/* --- Systemsteuerung: Medientasten und Tray ---
+
+   Eine Stelle entscheidet, wohin ein "Play/Pause" geht: Laeuft ein
+   Video, hat es Vorrang, sonst die Musik. Medientasten der Tastatur
+   kommen ueber navigator.mediaSession — Chromium reicht sie nur dann
+   herein, wenn hier gerade etwas spielt, und blockiert sie nicht fuer
+   andere Programme (anders als globalShortcut). */
+
+const mediaControl = {
+  videoActive() {
+    return vpCurrent.item !== null && !vp.root.classList.contains('hidden');
+  },
+
+  playPause() {
+    if (this.videoActive()) togglePlayVideo();
+    else if (music.current) music.toggle();
+  },
+
+  next() {
+    if (this.videoActive()) {
+      const nextItem = vpQueue[vpIndex + 1];
+      if (nextItem) playVideo(nextItem, vpQueue);
+    } else if (music.current) {
+      music.next();
+    }
+  },
+
+  prev() {
+    if (this.videoActive()) {
+      // Wie bei Musik: erst an den Anfang, erst beim zweiten Druck zurueck
+      const prevItem = vpQueue[vpIndex - 1];
+      if (mediaPosition() > 5 || !prevItem) seekTo(0);
+      else playVideo(prevItem, vpQueue);
+    } else if (music.current) {
+      music.prev();
+    }
+  },
+
+  stop() {
+    if (this.videoActive()) closeVideo();
+    else music.stop();
+    this.report();
+  },
+
+  /* Tray-Menue auf Stand bringen: was laeuft, ob es laeuft, und die
+     Beschriftungen in der eingestellten Sprache. */
+  report() {
+    if (!window.tray) return;
+    const video = this.videoActive();
+    const item = video ? vpCurrent.item : music.current;
+    const playing = video ? !vp.video.paused : Boolean(music.current && !mp.audio.paused);
+    const title = !item ? '' : item.SeriesName
+      ? `${item.SeriesName} — ${item.Name}`
+      : [item.Name, item.AlbumArtist || item.Artists?.[0]].filter(Boolean).join(' — ');
+
+    window.tray.setState({
+      playing,
+      active: Boolean(item),
+      title,
+      labels: {
+        play: t('player.play'),
+        pause: t('player.pause'),
+        next: t('music.next'),
+        previous: t('music.previous'),
+        show: t('tray.show'),
+        quit: t('tray.quit')
+      }
+    });
+  }
+};
 
 if ('mediaSession' in navigator) {
-  navigator.mediaSession.setActionHandler('play', () => mp.audio.play());
-  navigator.mediaSession.setActionHandler('pause', () => mp.audio.pause());
-  navigator.mediaSession.setActionHandler('previoustrack', () => music.prev());
-  navigator.mediaSession.setActionHandler('nexttrack', () => music.next());
+  const ms = navigator.mediaSession;
+  ms.setActionHandler('play', () => mediaControl.playPause());
+  ms.setActionHandler('pause', () => mediaControl.playPause());
+  ms.setActionHandler('previoustrack', () => mediaControl.prev());
+  ms.setActionHandler('nexttrack', () => mediaControl.next());
+  try {
+    ms.setActionHandler('stop', () => mediaControl.stop());
+  } catch (error) {
+    /* aeltere Chromium-Fassungen kennen 'stop' nicht */
+  }
 }
+
+window.tray?.onAction((action) => {
+  if (action === 'playpause') mediaControl.playPause();
+  else if (action === 'next') mediaControl.next();
+  else if (action === 'prev') mediaControl.prev();
+});
+
+['play', 'pause', 'emptied'].forEach((type) => {
+  vp.video.addEventListener(type, () => mediaControl.report());
+  mp.audio.addEventListener(type, () => mediaControl.report());
+});
+mediaControl.report();

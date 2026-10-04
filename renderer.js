@@ -3023,12 +3023,12 @@ el.connectForm.addEventListener('submit', async (event) => {
 
     if (el.rememberMe.checked) {
       try {
-        localStorage.setItem('jf-session', JSON.stringify({
+        vault.setJSON('jf-session', {
           serverUrl: activeUrl,
           token: auth.accessToken,
           userId: auth.userId,
           username: auth.userName
-        }));
+        });
       } catch (error) {
         /* ignorieren */
       }
@@ -3479,7 +3479,7 @@ el.disconnectBtn.addEventListener('click', () => {
 async function restoreSession() {
   let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem('jf-session') || 'null');
+    saved = vault.getJSON('jf-session');
   } catch (error) {
     return;
   }

@@ -3886,3 +3886,21 @@ a.lang-author:hover {
   .artist-portrait { width: 130px; }
   .artist-bio { -webkit-line-clamp: 3; }
 }
+
+/* ============================ TRAKT ============================ */
+#trakt-status-text.ok { color: var(--accent); }
+.trakt-code {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+.trakt-code strong {
+  font-size: 1.25rem; letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  user-select: all;
+}
+.trakt-code button { margin-left: auto; }

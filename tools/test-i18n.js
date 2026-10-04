@@ -276,8 +276,8 @@ app.whenReady().then(async () => {
 
       const cats = document.querySelectorAll('.settings-cat');
       const panels = document.querySelectorAll('.settings-panel');
-      check('Sieben Kategorien', cats.length === 7, cats.length + '');
-      check('Sieben Panels', panels.length === 7, panels.length + '');
+      check('Acht Kategorien', cats.length === 8, cats.length + '');
+      check('Acht Panels', panels.length === 8, panels.length + '');
 
       // Jede Kategorie braucht ihr Panel
       const catNames = Array.from(cats).map((c) => c.dataset.cat).sort();
