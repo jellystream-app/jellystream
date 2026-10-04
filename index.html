@@ -43,6 +43,13 @@
           <p data-i18n="login.intro">Melde dich an deinem Server an, um fortzufahren.</p>
         </div>
 
+        <!-- Wer schaut? Gespeicherte Konten und die oeffentlichen
+             Benutzer des eingetragenen Servers — ein Klick statt Tippen -->
+        <section id="profile-picker" class="profile-picker hidden" aria-labelledby="profile-picker-title">
+          <h3 id="profile-picker-title" data-i18n="profiles.title">Wer schaut?</h3>
+          <div id="profile-list" class="profile-list" role="list"></div>
+        </section>
+
         <form id="connect-form" class="connect-form" autocomplete="on">
           <div class="field">
             <label for="server-url" data-i18n="login.server">Server</label>
@@ -1108,5 +1115,6 @@
     <script src="offline.js"></script>
     <script src="player.js"></script>
     <script src="settings.js"></script>
+    <script src="profiles.js"></script>
   </body>
 </html>

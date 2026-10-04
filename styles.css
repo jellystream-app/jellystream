@@ -3938,3 +3938,50 @@ a.lang-author:hover {
   user-select: all;
 }
 .trakt-code button { margin-left: auto; }
+
+/* ========================= WER SCHAUT? ========================= */
+/* Ueber dem Formular, gleiche Breite wie die Felder. Kacheln statt
+   Liste: Gesichter erkennt man schneller als Namen. */
+.profile-picker { margin-bottom: 26px; }
+.profile-picker h3 {
+  margin: 0 0 12px;
+  font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted-2);
+}
+.profile-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+.profile-tile {
+  display: grid; justify-items: center; gap: 6px;
+  padding: 12px 6px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  text-align: center;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.profile-tile:hover, .profile-tile:focus-visible {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  color: var(--text);
+}
+.profile-tile .profile-face {
+  width: 56px; height: 56px;
+  font-size: 1.35rem;
+  transition: transform 0.15s var(--ease);
+}
+.profile-tile:hover .profile-face { transform: scale(1.06); }
+.profile-tile strong {
+  max-width: 100%;
+  font-size: 0.86rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-tile small {
+  max-width: 100%;
+  font-size: 0.72rem; color: var(--muted-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-tile.loading { opacity: 0.55; pointer-events: none; }

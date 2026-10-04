@@ -639,6 +639,8 @@
     "tray.quit": "Quit",
     "tray.show": "Show window",
     "menu.goToSeries": "Go to series",
-    "menu.goToAlbum": "Go to album"
+    "menu.goToAlbum": "Go to album",
+    "profiles.title": "Who's watching?",
+    "profiles.signInAs": "Sign in as {name}"
   }
 }

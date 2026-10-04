@@ -639,6 +639,8 @@
     "tray.quit": "Beenden",
     "tray.show": "Fenster anzeigen",
     "menu.goToSeries": "Zur Serie",
-    "menu.goToAlbum": "Zum Album"
+    "menu.goToAlbum": "Zum Album",
+    "profiles.title": "Wer schaut?",
+    "profiles.signInAs": "Als {name} anmelden"
   }
 }

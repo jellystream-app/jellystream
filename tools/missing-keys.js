@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['index.html', 'renderer.js', 'player.js', 'settings.js', 'offline.js',
+const FILES = ['index.html', 'renderer.js', 'player.js', 'settings.js', 'offline.js', 'profiles.js',
   'i18n-dom.js', ...fs.readdirSync(path.join(ROOT, 'core')).map((f) => `core/${f}`)];
 
 const used = new Set();

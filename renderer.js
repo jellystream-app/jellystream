@@ -340,6 +340,7 @@ function handleSessionExpired() {
 
   el.appShell.classList.add('hidden');
   el.loginScreen.classList.remove('hidden');
+  if (typeof showProfilePicker === 'function') showProfilePicker();
   setAuthError(t('auth.sessionExpiredLong'));
 
   const password = $('password');
@@ -3209,7 +3210,12 @@ el.connectForm.addEventListener('submit', async (event) => {
   const username = $('username').value.trim();
   const password = $('password').value;
 
-  if (!rawServerUrl || !username || !password) {
+  /* Ein leeres Passwort ist erlaubt, wenn der Server fuer dieses Konto
+     keines kennt (Profilauswahl, HasPassword: false) — Jellyfin
+     erlaubt solche Konten, etwa fuer Kinder. */
+  const passwordless = typeof profiles !== 'undefined' && profiles.publicUsers
+    .some((u) => u.Name === username && u.HasPassword === false);
+  if (!rawServerUrl || !username || (!password && !passwordless)) {
     setAuthError(t('auth.missingFields'));
     return;
   }
@@ -3674,6 +3680,7 @@ el.disconnectBtn.addEventListener('click', () => {
   el.appShell.classList.add('hidden');
   el.loginScreen.classList.remove('hidden');
   setAuthError('');
+  if (typeof showProfilePicker === 'function') showProfilePicker();
 });
 
 async function restoreSession() {
@@ -3793,7 +3800,7 @@ function initTitleBar() {
   const applyState = ({ maximized }) => {
     maxBtn.querySelector('.ic-max').classList.toggle('hidden', maximized);
     maxBtn.querySelector('.ic-restore').classList.toggle('hidden', !maximized);
-    maxBtn.title = maximized ? 'Wiederherstellen' : 'Maximieren';
+    maxBtn.title = maximized ? t('window.restore') : t('window.maximize');
   };
 
   controls.onStateChange(applyState);
@@ -3809,5 +3816,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const version = $('login-version');
   if (version) version.textContent = `v${window.appInfo?.version || ''}`;
 
-  restoreSession();
+  await restoreSession();
+  // Kein Konto wiederhergestellt: dann zeigen, wer schauen kann
+  if (!state.token && !offline.mode && typeof showProfilePicker === 'function') showProfilePicker();
 });

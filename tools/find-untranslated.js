@@ -129,7 +129,7 @@ function scanHtml(file) {
 }
 
 [
-  'renderer.js', 'player.js', 'offline.js', 'settings.js', 'i18n-dom.js',
+  'renderer.js', 'player.js', 'offline.js', 'settings.js', 'i18n-dom.js', 'profiles.js',
   'core/i18n.js', 'core/playback.js'
 ].forEach(scanJs);
 scanHtml('index.html');
