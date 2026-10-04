@@ -18,6 +18,15 @@
       "author": "Jellystream Team",
       "authorUrl": "",
       "version": 1
+    },
+    {
+      "code": "it",
+      "name": "Italian",
+      "nativeName": "Italiano",
+      "flag": "🇮🇹",
+      "author": "Jellystream Team",
+      "authorUrl": "",
+      "version": 1
     }
   ]
 }
