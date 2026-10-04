@@ -4081,3 +4081,27 @@ a.lang-author:hover {
 .parental-list { display: grid; gap: 6px; }
 .parental-user { display: flex; align-items: center; gap: 10px; }
 .parental-row select { min-width: 170px; }
+
+/* ========================== SOFA-MODUS ==========================
+   Vom Sofa aus liest man auf drei Meter: alles etwas groesser, und der
+   Fokus muss auf den ersten Blick zu finden sein. Gilt auch, sobald
+   ein Gamepad angeschlossen ist (has-gamepad) — nur der Rahmen. */
+:root.tv-mode { font-size: calc(18px * var(--ui-scale, 1)); }
+:root.tv-mode .card:focus-visible,
+:root.has-gamepad .card:focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 5px;
+  box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+:root.tv-mode .card:focus-visible .card-inner,
+:root.has-gamepad .card:focus-visible .card-inner { transform: scale(1.08); }
+:root.tv-mode :where(button, a, [tabindex="0"], select):focus-visible,
+:root.has-gamepad :where(button, a, [tabindex="0"], select):focus-visible {
+  outline-width: 3.5px;
+  outline-offset: 3px;
+}
+/* Folgen und Titel: die ganze Zeile hervorheben, nicht nur den Rand */
+.episode:focus-visible, .queue-item:focus-visible, .calendar-entry:focus-visible {
+  background: var(--surface-2);
+}
+:root.tv-mode .nav-btn { padding-inline: 14px; }

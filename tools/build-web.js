@@ -34,7 +34,7 @@ fs.mkdirSync(WEB, { recursive: true });
 
 /* --- Oberfläche und Logik, unverändert --- */
 ['index.html', 'styles.css', 'renderer.js', 'settings.js', 'player.js',
- 'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js'].forEach((f) => {
+ 'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'tvmode.js'].forEach((f) => {
   fs.copyFileSync(path.join(ROOT, f), path.join(WEB, f));
 });
 
@@ -184,7 +184,7 @@ html.is-web .titlebar { display: none; }
    ================================================================== */
 const required = [
   'index.html', 'styles.css', 'renderer.js', 'settings.js', 'player.js',
-  'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'web-bridge.js', 'manifest.webmanifest',
+  'offline.js', 'i18n-dom.js', 'profiles.js', 'syncplay-ui.js', 'tvmode.js', 'web-bridge.js', 'manifest.webmanifest',
   'core/api.js', 'core/i18n.js', 'core/playback.js',
   'language/en.json', 'language/de.json', 'language/index.json'
 ];

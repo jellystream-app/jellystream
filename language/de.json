@@ -442,6 +442,8 @@
     "settings.languageSourceCache": "Heruntergeladen",
     "settings.languageSourceBuiltin": "Mitgeliefert",
     "settings.catTrakt": "Trakt.tv",
+    "settings.tvMode": "Sofa-Modus",
+    "settings.tvModeHint": "Größere Schrift und Rahmen, Bedienung mit Pfeiltasten, Fernbedienung oder Gamepad",
     "footer.github": "GitHub",
     "footer.kofi": "Ko-fi",
     "footer.githubTitle": "Projekt auf GitHub",

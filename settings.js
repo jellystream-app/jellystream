@@ -60,6 +60,7 @@ const prefs = {
   cardShapes: {},
   navFromLibraries: true,
   reduceMotion: false,
+  tvMode: false,        // Sofa: groesser, Pfeiltasten bewegen den Fokus (tvmode.js)
 
   /* Woher der Aufbau kommt: 'jellystream' (feste Reiter und Reihen,
      wie bisher) oder 'jellyfin' (Reihenfolge und Abschnitte, wie im
@@ -913,6 +914,7 @@ async function openSettings() {
   $('card-shape').value = prefs.cardShape;
   $('set-nav-libraries').checked = prefs.navFromLibraries;
   $('set-reduce-motion').checked = prefs.reduceMotion;
+  $('set-tv-mode').checked = Boolean(prefs.tvMode);
 
   /* --- Eigenes CSS --- */
   $('css-editor').value = prefs.customCss || '';
@@ -1069,6 +1071,12 @@ $('set-nav-libraries').addEventListener('change', (e) => {
 $('set-reduce-motion').addEventListener('change', (e) => {
   prefs.reduceMotion = e.target.checked;
   applyInterface();
+  savePrefs();
+});
+
+$('set-tv-mode').addEventListener('change', (e) => {
+  prefs.tvMode = e.target.checked;
+  if (typeof applyTvMode === 'function') applyTvMode();
   savePrefs();
 });
 

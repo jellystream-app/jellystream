@@ -1085,6 +1085,22 @@ function skeletonEpisodes(count = 4) {
   ).join('');
 }
 
+/** Ein klickbares Element ohne eigenen Knopf (Folge, Titel) mit
+ *  Tastatur und Gamepad bedienbar machen: Tab erreicht es, Enter und
+ *  Leertaste loesen den Klick aus. */
+function makeActivatable(node, label) {
+  node.tabIndex = 0;
+  node.setAttribute('role', 'button');
+  if (label) node.setAttribute('aria-label', label);
+  node.addEventListener('keydown', (event) => {
+    if (event.target !== node) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      node.click();
+    }
+  });
+}
+
 /** Leerer Zustand mit optionalem Ausweg.
  *
  *  Nur "Keine Favoriten" zu lesen ist eine Sackgasse — wer nicht
@@ -2830,6 +2846,7 @@ function buildEpisodeRow(episode, siblings) {
     </div>`;
 
   row.addEventListener('click', () => playVideo(episode, siblings));
+  makeActivatable(row, episode.Name || '');
 
   row.querySelector('.ep-dl')?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -3122,6 +3139,7 @@ function buildTrackRow(track, index, queue, { showAlbum = false } = {}) {
     <span class="queue-dur">${formatTime(ticksToSeconds(track.RunTimeTicks))}</span>`;
 
   row.addEventListener('click', () => music.play(queue, index));
+  makeActivatable(row, track.Name || '');
   return row;
 }
 

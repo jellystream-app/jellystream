@@ -442,6 +442,8 @@
     "settings.languageSourceCache": "Downloaded",
     "settings.languageSourceBuiltin": "Included",
     "settings.catTrakt": "Trakt.tv",
+    "settings.tvMode": "Couch mode",
+    "settings.tvModeHint": "Larger text and focus rings, control with arrow keys, remote or gamepad",
     "footer.github": "GitHub",
     "footer.kofi": "Ko-fi",
     "footer.githubTitle": "Project on GitHub",
